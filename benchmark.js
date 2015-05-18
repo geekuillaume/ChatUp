@@ -2,15 +2,16 @@ var socketCluster = require('socketcluster-client');
 var _ = require('lodash');
 var async = require('async');
 var now = require('performance-now');
+var argv = require('minimist')(process.argv.slice(2));
 
 GLOBAL.document = {};
 
 benchmark({
-  messageLength: 120,
-  interval: 1000,
-  logInterval: 5000,
-  connexions: 200,
-  channelsNumber: 50,
+  messageLength: argv.messageLength || 120,
+  interval: argv.interval || 1000,
+  logInterval: argv.logInterval || 5000,
+  connexions: argv.connexions || 200,
+  channelsNumber: argv.channels || 50,
   hosts: [
     {
       hostname: "104.237.135.199",
