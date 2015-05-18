@@ -3,15 +3,17 @@ var _ = require('lodash');
 var async = require('async');
 var now = require('performance-now');
 var argv = require('minimist')(process.argv.slice(2));
+var cluster = require('cluster');
 
 GLOBAL.document = {};
 
-benchmark({
+var benchmarkOptions = {
   messageLength: argv.messageLength || 120,
   interval: argv.interval || 1000,
   logInterval: argv.logInterval || 5000,
-  connexions: argv.connexions || 200,
+  connexions: (argv.connexions || 50) / (argv.t || 1),
   channelsNumber: argv.channels || 50,
+  threads: (argv.t || 1),
   hosts: [
     {
       hostname: "104.237.135.199",
@@ -22,7 +24,35 @@ benchmark({
       port: "8001"
     }
   ]
-});
+};
+
+if (cluster.isMaster) {
+  for (var i = 0; i < benchmarkOptions.threads; i++) {
+    cluster.fork();
+  }
+
+  var stats = {};
+
+  _.each(cluster.workers, function(worker) {
+    worker.on('message', function(message) {
+      stats[worker.id] = message;
+    });
+  });
+
+  setInterval(function() {
+    var log = 'Received ' + _(stats).map('messageReceived').sum() + ', sended ' + _(stats).map('messageSent').sum() + ' hosts: ' + _.map(benchmarkOptions.hosts, function(host, i) {
+      return (_.chain(stats).map('latencies').map(function(el) {return el[i];}).sum().value() / benchmarkOptions.threads).toFixed(3) + 'ms ';
+    }).join('');
+    console.log(log);
+  }, benchmarkOptions.logInterval);
+
+  cluster.on('exit', function(worker, code, signal) {
+    console.log('worker ' + worker.process.pid + ' died');
+  });
+} else {
+  benchmark(benchmarkOptions);
+}
+
 
 
 function benchmark(options) {
@@ -50,13 +80,18 @@ function benchmark(options) {
       });
 
       setInterval(function() {
-        var log = 'Received ' + _(results).map('messageReceived').sum() + ', sended ' + _(results).map('messageSended').sum() + ' hosts: ';
-        _.each(options.hosts, function(host) {
-          log += (_.sum(host.lastTimes) / host.lastTimes.length).toFixed(3) + 'ms ';
-          host.lastTimes = [];
+
+        process.send({
+          messageSent: _(results).map('messageSended').sum(),
+          messageReceived: _(results).map('messageReceived').sum(),
+          latencies: _.map(options.hosts, function(host) {
+            var latency = _.sum(host.lastTimes) / host.lastTimes.length;
+            host.lastTimes = [];
+            return latency;
+          })
         });
-        console.log(log);
-      }, options.logInterval);
+
+      }, options.logInterval / 2);
     }
   );
 }
