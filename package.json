@@ -1,0 +1,25 @@
+{
+  "name": "ChatUp",
+  "description": "Extensible, Scalable, Fault-Tolerant Chat platform in NodeJS",
+  "version": "1.0.0",
+  "contributors": [
+    {
+      "name": "Guillaume Besson",
+      "email": "guillaume@besson.co"
+    }
+  ],
+  "dependencies": {
+    "async": "^0.9.0",
+    "connect": "3.0.1",
+    "express": "4.12.3",
+    "minimist": "1.1.0",
+    "redis": "^0.12.1",
+    "serve-static": "1.8.0",
+    "socketcluster": "2.2.x",
+    "socketcluster-client": "2.2.x"
+  },
+  "readmeFilename": "README.md",
+  "devDependencies": {
+    "performance-now": "^0.2.0"
+  }
+}
