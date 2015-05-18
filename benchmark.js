@@ -3,19 +3,21 @@ var _ = require('lodash');
 var async = require('async');
 var now = require('performance-now');
 
+GLOBAL.document = {};
+
 benchmark({
   messageLength: 120,
   interval: 1000,
   logInterval: 5000,
-  connexions: 800,
+  connexions: 200,
   channelsNumber: 50,
   hosts: [
-    // {
-    //   hostname: "localhost",
-    //   port: "8000"
-    // },
     {
-      hostname: "localhost",
+      hostname: "104.237.135.199",
+      port: "8001"
+    },
+    {
+      hostname: "45.33.7.81",
       port: "8001"
     }
   ]
