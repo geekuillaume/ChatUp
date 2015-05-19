@@ -1,31 +1,34 @@
 var express = require('express');
 var _ = require('lodash');
 var dispatchHandler = require('./lib/dispatchHandler');
-var ChatUpDispatcher = (function () {
-    function ChatUpDispatcher(conf) {
-        this.handleError = function (err, req, res, next) {
+var WorkersManager = require('./lib/workersManager');
+var Dispatcher = (function () {
+    function Dispatcher(conf) {
+        this._handleError = function (err, req, res, next) {
             res.send(400, { err: err });
         };
-        this.router = express.Router();
-        this.conf = _.defaults(ChatUpDispatcher.defaultConf, conf);
-        this.router.use(this.handleError);
+        this._router = express.Router();
+        this._conf = _.defaults(conf, Dispatcher.defaultConf);
+        this._router.use(this._handleError);
+        this._workersManager = new WorkersManager(this);
     }
-    ChatUpDispatcher.prototype.use = function (middleware) {
-        this.router.post('/', function (req, res, next) {
+    Dispatcher.prototype.use = function (middleware) {
+        this._router.post('/', function (req, res, next) {
             req._chatUpData = req._chatUpData || {};
             middleware(req, req._chatUpData, next);
         });
     };
-    ChatUpDispatcher.prototype.register = function (app) {
-        this.router.post('/', dispatchHandler);
-        app.use(this.router);
+    Dispatcher.prototype.register = function (app) {
+        this._router.post('/', dispatchHandler(this));
+        app.use(this._router);
     };
-    ChatUpDispatcher.defaultConf = {
+    Dispatcher.defaultConf = {
         redis: {
             port: 6780,
             host: "127.0.0.1"
-        }
+        },
+        workers: []
     };
-    return ChatUpDispatcher;
+    return Dispatcher;
 })();
-module.exports = ChatUpDispatcher;
+exports.Dispatcher = Dispatcher;

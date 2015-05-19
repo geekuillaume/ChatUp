@@ -1,6 +1,6 @@
 {
-  "name": "ChatUp-Dispatcher",
-  "version": "0.1.0",
+  "name": "ChatUp",
+  "version": "0.0.1",
   "description": "Extensible, Scalable, Fault-Tolerant Chat platform in NodeJS",
   "main": "index.js",
   "scripts": {
