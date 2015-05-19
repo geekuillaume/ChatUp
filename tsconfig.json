@@ -15,6 +15,9 @@
         "!./node_modules/**/*.ts"
     ],
     "files": [
+        "./chatWorker/index.ts",
+        "./chatWorker/lib/WSHandler.ts",
+        "./client/chatup.ts",
         "./dispatcher/index.ts",
         "./dispatcher/lib/dispatchHandler.ts",
         "./dispatcher/lib/workersManager.ts",
@@ -23,6 +26,7 @@
         "./typings/express/express.d.ts",
         "./typings/lodash/lodash.d.ts",
         "./typings/node/node.d.ts",
+        "./typings/socket.io/socket.io.d.ts",
         "./typings/tsd.d.ts"
     ]
 }
