@@ -14,6 +14,7 @@ interface DispatcherConf {
     host: string;
   };
   workers?: DispatcherWorkerHost[];
+  origins?: string;
 }
 
 interface request extends express.Request {
@@ -23,10 +24,11 @@ interface request extends express.Request {
 export class Dispatcher {
   static defaultConf: DispatcherConf = {
     redis: {
-      port: 6780,
+      port: 6379,
       host: "127.0.0.1"
     },
-    workers: []
+    workers: [],
+    origins: '*'
   };
 
   _router: express.Router;
@@ -37,11 +39,19 @@ export class Dispatcher {
     this._router = express.Router();
     this._conf = _.defaults(conf, Dispatcher.defaultConf);
     this._router.use(this._handleError);
+    this._router.use(this._allowCORS);
     this._workersManager = new WorkersManager(this);
   }
 
   _handleError:express.ErrorRequestHandler = function(err, req, res, next) {
     res.send(400, { err: err });
+  }
+
+  _allowCORS:express.RequestHandler = (req, res, next) => {
+    res.header('Access-Control-Allow-Origin', this._conf.origins);
+    res.header('Access-Control-Allow-Methods', 'POST');
+    res.header('Access-Control-Allow-Headers', 'Content-Type,X-Requested-With');
+    next();
   }
 
   use(middleware) {

@@ -4,12 +4,20 @@ var dispatchHandler = require('./lib/dispatchHandler');
 var WorkersManager = require('./lib/workersManager');
 var Dispatcher = (function () {
     function Dispatcher(conf) {
+        var _this = this;
         this._handleError = function (err, req, res, next) {
             res.send(400, { err: err });
+        };
+        this._allowCORS = function (req, res, next) {
+            res.header('Access-Control-Allow-Origin', _this._conf.origins);
+            res.header('Access-Control-Allow-Methods', 'POST');
+            res.header('Access-Control-Allow-Headers', 'Content-Type,X-Requested-With');
+            next();
         };
         this._router = express.Router();
         this._conf = _.defaults(conf, Dispatcher.defaultConf);
         this._router.use(this._handleError);
+        this._router.use(this._allowCORS);
         this._workersManager = new WorkersManager(this);
     }
     Dispatcher.prototype.use = function (middleware) {
@@ -24,10 +32,11 @@ var Dispatcher = (function () {
     };
     Dispatcher.defaultConf = {
         redis: {
-            port: 6780,
+            port: 6379,
             host: "127.0.0.1"
         },
-        workers: []
+        workers: [],
+        origins: '*'
     };
     return Dispatcher;
 })();
