@@ -16,6 +16,9 @@
     },
     "es6-promise/es6-promise.d.ts": {
       "commit": "3d80989bbba37cbe6ef0682c94fa7d8cb95f196d"
+    },
+    "socket.io/socket.io.d.ts": {
+      "commit": "3d80989bbba37cbe6ef0682c94fa7d8cb95f196d"
     }
   }
 }
