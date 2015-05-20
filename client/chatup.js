@@ -45,8 +45,10 @@ var ChatUp = (function () {
             });
         };
         this._isCorrectReponse = function (message, rejectFct) {
+            if (message === 'ok') {
+                return true;
+            }
             if (!_.isObject(message)) {
-                console.log(message);
                 rejectFct(new Error('Wrong return from the server: ' + message));
                 return false;
             }

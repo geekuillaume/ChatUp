@@ -44,7 +44,7 @@ var ChatUpSocket = (function () {
                 }
             };
             _this._debug('Authentified', _this._socket.id);
-            cb({ status: 'ok' });
+            cb('ok');
         };
         this._onJoin = function (msg, cb) {
             if (!_.isObject(msg) || !_.isString(msg.room)) {
@@ -56,7 +56,7 @@ var ChatUpSocket = (function () {
             _this._room = msg.room;
             _this._socket.join(msg.room);
             _this._debug('Joined room %s', _this._socket.id, _this._room);
-            cb({ status: 'ok' });
+            cb('ok');
         };
         this._onSay = function (msg, cb) {
             if (!_.isObject(msg) || !_.isString(msg.msg)) {
@@ -70,7 +70,7 @@ var ChatUpSocket = (function () {
                 msg: msg.msg
             });
             _this._debug('Say %s', msg.msg);
-            cb({ status: 'ok' });
+            cb('ok');
         };
         this._onDisconnect = function () {
             _this._debug('Client %s disconnected', _this._socket.id);

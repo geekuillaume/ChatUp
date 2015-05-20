@@ -70,7 +70,7 @@ class ChatUpSocket {
       }
     };
     this._debug('Authentified', this._socket.id);
-    cb({status: 'ok'});
+    cb('ok');
   }
 
   _onJoin = (msg, cb) => {
@@ -83,7 +83,7 @@ class ChatUpSocket {
     this._room = msg.room;
     this._socket.join(msg.room);
     this._debug('Joined room %s', this._socket.id, this._room);
-    cb({status: 'ok'});
+    cb('ok');
   }
 
   _onSay = (msg, cb) => {
@@ -98,7 +98,7 @@ class ChatUpSocket {
       msg: msg.msg
     });
     this._debug('Say %s', msg.msg);
-    cb({status: 'ok'});
+    cb('ok');
   }
 
   _onDisconnect = () => {

@@ -93,8 +93,10 @@ class ChatUp {
   }
 
   _isCorrectReponse = (message, rejectFct):boolean => {
+    if (message === 'ok') {
+      return true;
+    }
     if (!_.isObject(message)) {
-      console.log(message);
       rejectFct(new Error('Wrong return from the server: ' + message));
       return false;
     }
