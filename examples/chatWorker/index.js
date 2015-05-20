@@ -6,7 +6,8 @@ var worker = new ChatUp.ChatWorker({
     port: 6379
   },
   port: 8001,
-  origins: '*'
+  origins: '*',
+  sticky: false // For benchmark purpose, we don't want to have sticky sessions
 });
 
 worker.listen().then(function() {
