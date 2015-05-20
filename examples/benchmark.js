@@ -14,7 +14,7 @@ var benchmarkOptions = {
   threads: (argv.t || 1),
   startDelay: 5000,
   startDelayInterval: 500,
-  dispatcherURL: 'http://localhost:8000/'
+  dispatcherURL: argv.dispatcher || 'http://localhost:8000/'
 };
 
 
