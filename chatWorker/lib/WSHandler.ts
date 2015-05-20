@@ -96,6 +96,7 @@ class ChatUpSocket {
       user: this._user._public,
       msg: msg.msg
     });
+    cb({status: 'ok'});
   }
 
 }

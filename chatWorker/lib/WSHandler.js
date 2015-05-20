@@ -69,6 +69,7 @@ var ChatUpSocket = (function () {
                 user: _this._user._public,
                 msg: msg.msg
             });
+            cb({ status: 'ok' });
         };
         console.log('New connection');
         this._socket = socket;
