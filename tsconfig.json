@@ -17,11 +17,13 @@
     "files": [
         "./chatWorker/index.ts",
         "./chatWorker/lib/WSHandler.ts",
+        "./chatWorker/lib/sticky.ts",
         "./client/chatup.ts",
         "./dispatcher/index.ts",
         "./dispatcher/lib/dispatchHandler.ts",
         "./dispatcher/lib/workersManager.ts",
         "./index.ts",
+        "./typings/debug/debug.d.ts",
         "./typings/es6-promise/es6-promise.d.ts",
         "./typings/express/express.d.ts",
         "./typings/lodash/lodash.d.ts",

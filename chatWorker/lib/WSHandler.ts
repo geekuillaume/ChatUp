@@ -1,6 +1,7 @@
 import socketio = require('socket.io');
 import http = require('http');
 var redisAdaptater = require('socket.io-redis');
+var debugFactory = require('debug');
 import _ = require('lodash');
 import ChatWorker = require('../index');
 
@@ -10,8 +11,11 @@ class WSHandler {
   _app: http.Server;
   _redisAdapter;
   _sockets: ChatUpSocket[];
+  _debug: Function;
 
   constructor(parent: ChatWorker.ChatWorker) {
+    this._debug = debugFactory('ChatUp:ChatWorker:slave:' + process.pid);
+    this._debug('Slave init');
     this._parent = parent;
     this._app = http.createServer();
     this._io = socketio(this._app, {
@@ -24,20 +28,12 @@ class WSHandler {
   }
 
   _onConnection = (socket: SocketIO.Socket) => {
+    this._debug('Got connection %s from %s', socket.id, socket.client.conn.remoteAddress);
     this._sockets.push(new ChatUpSocket(socket, this));
   }
 
-  listen():Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      this._app.listen(this._parent._conf.port, function(err) {
-        if (err) {
-          reject(err);
-        }
-        else {
-          resolve();
-        }
-      });
-    })
+  get server() {
+    return this._app;
   }
 }
 
@@ -50,15 +46,18 @@ class ChatUpSocket {
   _parent: typeof WSHandler;
   _room: string;
   _user: WSUser;
+  _debug: Function;
 
   constructor(socket: SocketIO.Socket, parent: WSHandler) {
-    console.log('New connection');
+    this._debug = debugFactory('ChatUp:ChatWorker:client:' + socket.id);
     this._socket = socket;
     this._parent = WSHandler;
 
+    this._debug('New connection %s from %s', socket.id, socket.client.conn.remoteAddress);
     this._socket.on('auth', this._onAuth);
     this._socket.on('join', this._onJoin);
     this._socket.on('say', this._onSay);
+    this._socket.on('disconnect', this._onDisconnect);
   }
 
   _onAuth = (msg, cb) => {
@@ -70,6 +69,7 @@ class ChatUpSocket {
         name: msg.name
       }
     };
+    this._debug('Authentified', this._socket.id);
     cb({status: 'ok'});
   }
 
@@ -82,6 +82,7 @@ class ChatUpSocket {
     }
     this._room = msg.room;
     this._socket.join(msg.room);
+    this._debug('Joined room %s', this._socket.id, this._room);
     cb({status: 'ok'});
   }
 
@@ -96,7 +97,12 @@ class ChatUpSocket {
       user: this._user._public,
       msg: msg.msg
     });
+    this._debug('Say %s', msg.msg);
     cb({status: 'ok'});
+  }
+
+  _onDisconnect = () => {
+    this._debug('Client %s disconnected', this._socket.id);
   }
 
 }
