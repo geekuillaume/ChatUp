@@ -39,6 +39,8 @@ function benchmark(options) {
 
     }, options.logInterval);
 
+  }).catch(function(err) {
+    console.error(err);
   });
 }
 

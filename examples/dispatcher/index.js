@@ -5,7 +5,7 @@ var app = express();
 
 var dispatcher = new ChatUp.Dispatcher({
   workers: [{
-    host: '127.0.0.1',
+    host: 'http://127.0.0.1',
     port: '8001'
   }]
 });
