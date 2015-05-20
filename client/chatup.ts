@@ -1,6 +1,6 @@
 var request = require('superagent');
 var io = require('socket.io-client');
-var _ = require('lodash');
+import _ = require('lodash');
 var es6shim = require('es6-shim');
 var now = require('performance-now');
 
@@ -9,7 +9,6 @@ interface ChatUpConf {
   userInfo: {};
   room: string;
   socketIO: {};
-  debug: boolean;
 }
 
 interface ChatUpStats {
@@ -20,6 +19,15 @@ interface ChatUpStats {
 
 class ChatUp {
 
+  static defaultConf: ChatUpConf = {
+    dispatcherURL: '/dispatcher',
+    userInfo: {},
+    room: 'defaultRoom',
+    socketIO: {
+      timeout: 5000
+    }
+  }
+
   _conf: ChatUpConf;
   _socket: any;
 
@@ -29,6 +37,8 @@ class ChatUp {
 
   constructor(conf: ChatUpConf) {
     this._conf = conf;
+    _.defaults(conf, ChatUp.defaultConf);
+    _.defaults(conf.socketIO, ChatUp.defaultConf.socketIO);
     this._stats = {
       msgSent: 0,
       msgReceived:0,
@@ -122,7 +132,9 @@ class ChatUp {
         resolve();
       });
       this._socket.on('connect_error', (err) => {
-        reject(err);
+        _.after(2, function() {
+          reject(err);
+        });
       });
     });
   }

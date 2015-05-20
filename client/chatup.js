@@ -81,7 +81,9 @@ var ChatUp = (function () {
                     resolve();
                 });
                 _this._socket.on('connect_error', function (err) {
-                    reject(err);
+                    _.after(2, function () {
+                        reject(err);
+                    });
                 });
             });
         };
@@ -97,6 +99,8 @@ var ChatUp = (function () {
             });
         };
         this._conf = conf;
+        _.defaults(conf, ChatUp.defaultConf);
+        _.defaults(conf.socketIO, ChatUp.defaultConf.socketIO);
         this._stats = {
             msgSent: 0,
             msgReceived: 0,
@@ -110,6 +114,14 @@ var ChatUp = (function () {
         enumerable: true,
         configurable: true
     });
+    ChatUp.defaultConf = {
+        dispatcherURL: '/dispatcher',
+        userInfo: {},
+        room: 'defaultRoom',
+        socketIO: {
+            timeout: 5000
+        }
+    };
     return ChatUp;
 })();
 module.exports = ChatUp;
