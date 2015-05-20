@@ -1,12 +1,15 @@
-var reqwest = require('reqwest');
+var request = require('superagent');
 var io = require('socket.io-client');
 var _ = require('lodash');
 var es6shim = require('es6-shim');
+var now = require('performance-now');
 
 interface ChatUpConf {
   dispatcherURL: string;
   userInfo: {};
   room: string;
+  socketIO: {};
+  debug: boolean;
 }
 
 interface ChatUpStats {
@@ -56,7 +59,9 @@ class ChatUp {
     return this._waitInit(() => {
       return new Promise<any>((resolve, reject) => {
         this._stats.msgSent++;
+        var start = now();
         this._socket.emit('say', {msg: message}, (response) => {
+          this._stats.latency = now() - start;
           if (!this._isCorrectReponse(response, reject))
             return;
           return resolve();
@@ -112,7 +117,7 @@ class ChatUp {
 
   _connectSocket = (workerInfos):Promise<any> => {
     return new Promise((resolve, reject) => {
-      this._socket = io(workerInfos.host + ':' + workerInfos.port);
+      this._socket = io(workerInfos.host + ':' + workerInfos.port, this._conf.socketIO);
       this._socket.on('connect', () => {
         resolve();
       });
@@ -123,12 +128,16 @@ class ChatUp {
   }
 
   _getChatWorker = ():Promise<any> => {
-    return reqwest({
-      url: this._conf.dispatcherURL,
-      method: 'post'
+    return new Promise((resolve, reject) => {
+      request.post(this._conf.dispatcherURL)
+      .end((err, res) => {
+        if (err) {
+          return reject(err);
+        }
+        resolve(res.body);
+      });
     });
   }
-
 }
 
 export = ChatUp;

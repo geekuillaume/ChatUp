@@ -1,7 +1,8 @@
-var reqwest = require('reqwest');
+var request = require('superagent');
 var io = require('socket.io-client');
 var _ = require('lodash');
 var es6shim = require('es6-shim');
+var now = require('performance-now');
 var ChatUp = (function () {
     function ChatUp(conf) {
         var _this = this;
@@ -23,7 +24,9 @@ var ChatUp = (function () {
             return _this._waitInit(function () {
                 return new Promise(function (resolve, reject) {
                     _this._stats.msgSent++;
+                    var start = now();
                     _this._socket.emit('say', { msg: message }, function (response) {
+                        _this._stats.latency = now() - start;
                         if (!_this._isCorrectReponse(response, reject))
                             return;
                         return resolve();
@@ -73,7 +76,7 @@ var ChatUp = (function () {
         };
         this._connectSocket = function (workerInfos) {
             return new Promise(function (resolve, reject) {
-                _this._socket = io(workerInfos.host + ':' + workerInfos.port);
+                _this._socket = io(workerInfos.host + ':' + workerInfos.port, _this._conf.socketIO);
                 _this._socket.on('connect', function () {
                     resolve();
                 });
@@ -83,9 +86,14 @@ var ChatUp = (function () {
             });
         };
         this._getChatWorker = function () {
-            return reqwest({
-                url: _this._conf.dispatcherURL,
-                method: 'post'
+            return new Promise(function (resolve, reject) {
+                request.post(_this._conf.dispatcherURL)
+                    .end(function (err, res) {
+                    if (err) {
+                        return reject(err);
+                    }
+                    resolve(res.body);
+                });
             });
         };
         this._conf = conf;
