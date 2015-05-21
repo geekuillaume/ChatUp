@@ -1,6 +1,7 @@
 var sticky_1 = require('./lib/sticky');
 var _ = require('lodash');
 var cluster = require('cluster');
+var workerManager_1 = require('./lib/workerManager');
 var debug = cluster.isMaster ? require('debug')('ChatUp:ChatWorker:master') : _.noop;
 ;
 var ChatMessage = (function () {
@@ -24,13 +25,15 @@ var ChatWorker = (function () {
         var _this = this;
         return new Promise(function (resolve, reject) {
             debug('Starting listening on %s', _this._conf.port);
-            _this._server.listen(_this._conf.port, function (err) {
+            _this._server.listen(_this._conf.port || 0, function (err) {
                 if (err) {
                     debug('Error while listening', err);
                     return reject(err);
                 }
                 debug('Listening on %s', _this._conf.port);
-                resolve();
+                _this._conf.port = _this._conf.port || _this._server.address().port;
+                debug('Registering the worker');
+                workerManager_1.registerWorker(_this).then(resolve);
             });
         });
     };
@@ -39,7 +42,6 @@ var ChatWorker = (function () {
             port: 6379,
             host: "localhost"
         },
-        port: 8001,
         origins: '*',
         threads: require('os').cpus().length,
         sticky: true,

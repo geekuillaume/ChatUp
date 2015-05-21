@@ -15,6 +15,7 @@
   "dependencies": {
     "debug": "^2.2.0",
     "express": "^4.12.3",
+    "got": "^3.2.0",
     "hiredis": "^0.3.0",
     "lodash": "^3.8.0",
     "redis": "^0.12.1",

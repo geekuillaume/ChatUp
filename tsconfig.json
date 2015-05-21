@@ -17,8 +17,10 @@
     "files": [
         "./chatWorker/index.ts",
         "./chatWorker/lib/WSHandler.ts",
+        "./chatWorker/lib/portFinder.ts",
         "./chatWorker/lib/sticky.ts",
         "./chatWorker/lib/store.ts",
+        "./chatWorker/lib/workerManager.ts",
         "./client/chatup.ts",
         "./dispatcher/index.ts",
         "./dispatcher/lib/dispatchHandler.ts",

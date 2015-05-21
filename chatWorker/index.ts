@@ -2,6 +2,7 @@ import {sticky} from './lib/sticky';
 import _ = require('lodash');
 import cluster = require('cluster');
 import {WSHandler} from './lib/WSHandler';
+import {registerWorker} from './lib/workerManager';
 
 var debug = cluster.isMaster ? require('debug')('ChatUp:ChatWorker:master') : _.noop;
 
@@ -11,6 +12,7 @@ export interface ChatWorkerConf {
     host: string;
   };
   port?: number;
+  host?: string;
   origins?: string;
   threads?: number;
   sticky?: boolean;
@@ -29,7 +31,6 @@ export class ChatWorker {
       port: 6379,
       host: "localhost"
     },
-    port: 8001,
     origins: '*',
     threads: require('os').cpus().length,
     sticky: true,
@@ -49,18 +50,21 @@ export class ChatWorker {
       data: this._conf
     });
     debug('Finished Init');
+
   }
 
   listen():Promise<void> {
     return new Promise<void>((resolve, reject) => {
       debug('Starting listening on %s', this._conf.port);
-      this._server.listen(this._conf.port, (err) => {
+      this._server.listen(this._conf.port || 0, (err) => {
         if (err) {
           debug('Error while listening', err);
           return reject(err);
         }
         debug('Listening on %s', this._conf.port);
-        resolve();
+        this._conf.port = this._conf.port || this._server.address().port;
+        debug('Registering the worker');
+        registerWorker(this).then(resolve);
       });
     });
   }
