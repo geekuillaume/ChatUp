@@ -31,11 +31,6 @@ export class Store {
       room._pushMessage(message);
     });
 
-    if (this._parent._conf.msgBufferDelay !== 0) {
-      setInterval(() => {
-        _.each(this._rooms, function(room) {room._drain();});
-      }, this._parent._conf.msgBufferDelay);
-    }
   }
 
   joinRoom = (roomName: string): Room => {
@@ -78,6 +73,7 @@ export class Room extends EventEmitter {
     this._joined = 0;
     this._messageBuffer = [];
     this._handlers = [];
+    setInterval(this._drain, this._parent._parent._conf.msgBufferDelay);
   }
 
   say = (message: ChatMessage) => {

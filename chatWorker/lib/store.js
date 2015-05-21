@@ -43,11 +43,6 @@ var Store = (function () {
             _this._debug('Got from Redis on room %s', roomName);
             room._pushMessage(message);
         });
-        if (this._parent._conf.msgBufferDelay !== 0) {
-            setInterval(function () {
-                _.each(_this._rooms, function (room) { room._drain(); });
-            }, this._parent._conf.msgBufferDelay);
-        }
     }
     return Store;
 })();
@@ -115,6 +110,7 @@ var Room = (function (_super) {
         this._joined = 0;
         this._messageBuffer = [];
         this._handlers = [];
+        setInterval(this._drain, this._parent._parent._conf.msgBufferDelay);
     }
     return Room;
 })(events_1.EventEmitter);
