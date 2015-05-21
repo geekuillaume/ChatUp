@@ -75,7 +75,7 @@ class ChatUpSocket {
         name: msg.name
       }
     };
-    this._debug('Authentified', this._socket.id);
+    this._debug('Authentified');
     cb('ok');
   }
 
@@ -113,7 +113,7 @@ class ChatUpSocket {
   }
 
   _onDisconnect = () => {
-    this._debug('Client %s disconnected', this._socket.id);
+    this._debug('Client disconnected');
     if (this._room) {
       this._room.quit();
     }

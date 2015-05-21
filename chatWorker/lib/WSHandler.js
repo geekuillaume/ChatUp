@@ -49,7 +49,7 @@ var ChatUpSocket = (function () {
                     name: msg.name
                 }
             };
-            _this._debug('Authentified', _this._socket.id);
+            _this._debug('Authentified');
             cb('ok');
         };
         this._onJoin = function (msg, cb) {
@@ -83,7 +83,7 @@ var ChatUpSocket = (function () {
             cb('ok');
         };
         this._onDisconnect = function () {
-            _this._debug('Client %s disconnected', _this._socket.id);
+            _this._debug('Client disconnected');
             if (_this._room) {
                 _this._room.quit();
             }
