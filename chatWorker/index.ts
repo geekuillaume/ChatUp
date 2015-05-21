@@ -1,4 +1,4 @@
-import sticky = require('./lib/sticky');
+import {sticky} from './lib/sticky';
 import _ = require('lodash');
 import cluster = require('cluster');
 import {WSHandler} from './lib/WSHandler';
@@ -43,12 +43,10 @@ export class ChatWorker {
   constructor(conf: ChatWorkerConf) {
     debug('Init');
     this._conf = _.defaults(conf, ChatWorker.defaultConf);
-    this._server = sticky(() => {
-      var handler = new WSHandler(this._conf);
-      return handler.server;
-    }, {
+    this._server = sticky(__dirname + '/lib/WSHandler.js', {
       sticky: this._conf.sticky,
-      threads: this._conf.threads
+      threads: this._conf.threads,
+      data: this._conf
     });
     debug('Finished Init');
   }

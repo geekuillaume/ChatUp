@@ -4,6 +4,11 @@ var redisAdaptater = require('socket.io-redis');
 var debugFactory = require('debug');
 var _ = require('lodash');
 var store_1 = require('./store');
+var sticky_1 = require('./sticky');
+sticky_1.stickyClient(function (conf) {
+    var handler = new WSHandler(conf);
+    return handler.server;
+});
 var WSHandler = (function () {
     function WSHandler(conf) {
         var _this = this;

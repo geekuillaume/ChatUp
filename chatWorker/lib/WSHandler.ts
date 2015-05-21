@@ -5,6 +5,12 @@ var debugFactory = require('debug');
 import _ = require('lodash');
 import {ChatWorker, ChatWorkerConf} from '../index';
 import {Store, Room} from './store';
+import {stickyClient} from './sticky';
+
+stickyClient(function(conf) {
+  var handler = new WSHandler(conf);
+  return handler.server;
+})
 
 export class WSHandler {
   _io: SocketIO.Server;

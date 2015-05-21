@@ -19,21 +19,27 @@ function hash(ip, seed) {
 }
 var defaultOptions = {
     threads: require('os').cpus().length,
-    sticky: true
+    sticky: true,
+    data: {}
 };
-var sticky = function (callback, opt) {
+exports.sticky = function (file, opt) {
     var options = _.defaults(opt, defaultOptions);
     var server;
+    cluster.setupMaster({
+        exec: file
+    });
     if (cluster.isMaster) {
         var workers = [];
+        function spawn(i) {
+            workers[i] = cluster.fork();
+            workers[i].on('exit', function () {
+                console.error('sticky-session: worker died');
+                spawn(i);
+            });
+            workers[i].send({ type: 'sticky-startconfig', data: opt.data });
+        }
         for (var i = 0; i < options.threads; i++) {
-            !function spawn(i) {
-                workers[i] = cluster.fork();
-                workers[i].on('exit', function () {
-                    console.error('sticky-session: worker died');
-                    spawn(i);
-                });
-            }(i);
+            spawn(i);
         }
         var seed = ~~(Math.random() * 1e9);
         server = net.createServer(function (c) {
@@ -48,15 +54,21 @@ var sticky = function (callback, opt) {
             worker.send('sticky-session:connection', c);
         });
     }
-    else {
-        server = typeof callback === 'function' ? callback() : callback;
+    return server;
+};
+exports.stickyClient = function (cb) {
+    process.on('message', function (message) {
+        if (message.type !== 'sticky-startconfig') {
+            return;
+        }
+        var server = cb(message.data);
+        if (!server)
+            throw new Error('Worker hasn\'t created server!');
         process.on('message', function (msg, socket) {
             if (msg !== 'sticky-session:connection')
                 return;
             server.emit('connection', socket);
         });
-        if (!server)
-            throw new Error('Worker hasn\'t created server!');
         var oldListen = server.listen;
         server.listen = function listen() {
             var lastArg = arguments[arguments.length - 1];
@@ -64,7 +76,5 @@ var sticky = function (callback, opt) {
                 lastArg();
             return oldListen.call(this, null);
         };
-    }
-    return server;
+    });
 };
-module.exports = sticky;
