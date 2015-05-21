@@ -1,11 +1,11 @@
 import sticky = require('./lib/sticky');
 import _ = require('lodash');
 import cluster = require('cluster');
-import WSHandler = require('./lib/WSHandler');
+import {WSHandler} from './lib/WSHandler';
 
 var debug = cluster.isMaster ? require('debug')('ChatUp:ChatWorker:master') : _.noop;
 
-interface ChatWorkerConf {
+export interface ChatWorkerConf {
   redis?: {
     port: number;
     host: string;
@@ -14,7 +14,13 @@ interface ChatWorkerConf {
   origins?: string;
   threads?: number;
   sticky?: boolean;
+  msgBufferDelay?: number;
 };
+
+export class ChatMessage {
+  msg: string;
+  user: {};
+}
 
 export class ChatWorker {
 
@@ -26,7 +32,8 @@ export class ChatWorker {
     port: 8001,
     origins: '*',
     threads: require('os').cpus().length,
-    sticky: true
+    sticky: true,
+    msgBufferDelay: 500
   };
 
   _conf: ChatWorkerConf;
@@ -37,7 +44,7 @@ export class ChatWorker {
     debug('Init');
     this._conf = _.defaults(conf, ChatWorker.defaultConf);
     this._server = sticky(() => {
-      var handler = new WSHandler(this);
+      var handler = new WSHandler(this._conf);
       return handler.server;
     }, {
       sticky: this._conf.sticky,

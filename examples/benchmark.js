@@ -2,6 +2,7 @@ var _ = require('lodash');
 var now = require('performance-now');
 var argv = require('minimist')(process.argv.slice(2));
 var cluster = require('cluster');
+var debug = require('debug')('ChatUp:benchmark');
 
 var ChatUp = require('../client/chatup');
 
@@ -44,6 +45,7 @@ function benchmark(options) {
   var rooms = _.map(_.range(options.roomsNumber), function(x, i) {return 'room' + i;});
   var promises = [];
   function createChats(n) {
+    debug('Initializing %s Chats', n);
     for (var i = 0; i < n; i++) {
       if (promises.length >= options.connexions)
         return;
@@ -68,7 +70,9 @@ function benchmark(options) {
     Promise.all(promises).then(function(sockets) {
       console.log('%s workers started and connected', sockets.length);
       _.each(sockets, function(socket, i) {
+        socket.onMsg(_.noop);
         setTimeout(function() {
+          debug('Starting message loop on socket %s', i);
           var sendMessage = function() {
             socket.say(randomId(options.messageLength));
           };

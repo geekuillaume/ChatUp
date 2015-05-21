@@ -23369,9 +23369,6 @@ var ChatUp = (function () {
                 .then(_this._authenticate)
                 .then(_this._join)
                 .then(function () {
-                _this._socket.on('msg', function () {
-                    _this._stats.msgReceived++;
-                });
                 return _this;
             });
         };
@@ -23391,7 +23388,13 @@ var ChatUp = (function () {
         };
         this.onMsg = function (handler) {
             _this._waitInit(function () {
-                _this._socket.on('msg', handler);
+                _this._socket.on('msg', function (messages) {
+                    for (var _i = 0; _i < messages.length; _i++) {
+                        var message = messages[_i];
+                        _this._stats.msgReceived++;
+                        handler(message);
+                    }
+                });
             });
         };
         this._waitInit = function (fct) {
@@ -23400,8 +23403,10 @@ var ChatUp = (function () {
             });
         };
         this._isCorrectReponse = function (message, rejectFct) {
+            if (message === 'ok') {
+                return true;
+            }
             if (!_.isObject(message)) {
-                console.log(message);
                 rejectFct(new Error('Wrong return from the server: ' + message));
                 return false;
             }
@@ -23436,7 +23441,9 @@ var ChatUp = (function () {
                     resolve();
                 });
                 _this._socket.on('connect_error', function (err) {
-                    reject(err);
+                    _.after(2, function () {
+                        reject(err);
+                    });
                 });
             });
         };
@@ -23452,6 +23459,8 @@ var ChatUp = (function () {
             });
         };
         this._conf = conf;
+        _.defaults(conf, ChatUp.defaultConf);
+        _.defaults(conf.socketIO, ChatUp.defaultConf.socketIO);
         this._stats = {
             msgSent: 0,
             msgReceived: 0,
@@ -23465,6 +23474,14 @@ var ChatUp = (function () {
         enumerable: true,
         configurable: true
     });
+    ChatUp.defaultConf = {
+        dispatcherURL: '/dispatcher',
+        userInfo: {},
+        room: 'defaultRoom',
+        socketIO: {
+            timeout: 5000
+        }
+    };
     return ChatUp;
 })();
 module.exports = ChatUp;

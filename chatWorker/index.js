@@ -1,16 +1,22 @@
 var sticky = require('./lib/sticky');
 var _ = require('lodash');
 var cluster = require('cluster');
-var WSHandler = require('./lib/WSHandler');
+var WSHandler_1 = require('./lib/WSHandler');
 var debug = cluster.isMaster ? require('debug')('ChatUp:ChatWorker:master') : _.noop;
 ;
+var ChatMessage = (function () {
+    function ChatMessage() {
+    }
+    return ChatMessage;
+})();
+exports.ChatMessage = ChatMessage;
 var ChatWorker = (function () {
     function ChatWorker(conf) {
         var _this = this;
         debug('Init');
         this._conf = _.defaults(conf, ChatWorker.defaultConf);
         this._server = sticky(function () {
-            var handler = new WSHandler(_this);
+            var handler = new WSHandler_1.WSHandler(_this._conf);
             return handler.server;
         }, {
             sticky: this._conf.sticky,
@@ -40,7 +46,8 @@ var ChatWorker = (function () {
         port: 8001,
         origins: '*',
         threads: require('os').cpus().length,
-        sticky: true
+        sticky: true,
+        msgBufferDelay: 500
     };
     return ChatWorker;
 })();

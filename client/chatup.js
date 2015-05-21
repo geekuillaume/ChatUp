@@ -14,9 +14,6 @@ var ChatUp = (function () {
                 .then(_this._authenticate)
                 .then(_this._join)
                 .then(function () {
-                _this._socket.on('msg', function () {
-                    _this._stats.msgReceived++;
-                });
                 return _this;
             });
         };
@@ -36,7 +33,13 @@ var ChatUp = (function () {
         };
         this.onMsg = function (handler) {
             _this._waitInit(function () {
-                _this._socket.on('msg', handler);
+                _this._socket.on('msg', function (messages) {
+                    for (var _i = 0; _i < messages.length; _i++) {
+                        var message = messages[_i];
+                        _this._stats.msgReceived++;
+                        handler(message);
+                    }
+                });
             });
         };
         this._waitInit = function (fct) {

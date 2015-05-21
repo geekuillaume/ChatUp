@@ -58,9 +58,6 @@ class ChatUp {
     .then(this._authenticate)
     .then(this._join)
     .then(() => {
-      this._socket.on('msg', () => {
-        this._stats.msgReceived++;
-      })
       return this;
     });
   }
@@ -82,7 +79,12 @@ class ChatUp {
 
   onMsg = (handler) => {
     this._waitInit(() => {
-      this._socket.on('msg', handler);
+      this._socket.on('msg', (messages) => {
+        for (let message of messages) {
+          this._stats.msgReceived++;
+          handler(message);
+        }
+      });
     });
   }
 

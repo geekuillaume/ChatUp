@@ -18,6 +18,7 @@
         "./chatWorker/index.ts",
         "./chatWorker/lib/WSHandler.ts",
         "./chatWorker/lib/sticky.ts",
+        "./chatWorker/lib/store.ts",
         "./client/chatup.ts",
         "./dispatcher/index.ts",
         "./dispatcher/lib/dispatchHandler.ts",
@@ -28,6 +29,7 @@
         "./typings/express/express.d.ts",
         "./typings/lodash/lodash.d.ts",
         "./typings/node/node.d.ts",
+        "./typings/redis/redis.d.ts",
         "./typings/socket.io/socket.io.d.ts",
         "./typings/tsd.d.ts"
     ]

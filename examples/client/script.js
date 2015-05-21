@@ -2,7 +2,7 @@ var argv = {};
 
 var benchmarkOptions = {
   messageLength: argv.messageLength || 120,
-  interval: argv.interval || 1000,
+  interval: argv.interval || 100,
   logInterval: argv.logInterval || 2000,
   connexions: (argv.connexions || 1) / (argv.t || 1),
   roomsNumber: argv.rooms || 1,
@@ -23,6 +23,7 @@ function benchmark(options) {
   })).then(function(sockets) {
     console.log('%s workers started and connected', sockets.length);
     _.each(sockets, function(socket, i) {
+      socket.onMsg(_.noop);
       setTimeout(function() {
         var sendMessage = function() {
           socket.say(randomId(options.messageLength));
