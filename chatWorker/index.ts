@@ -1,25 +1,25 @@
-import {sticky} from './lib/sticky';
 import _ = require('lodash');
-import cluster = require('cluster');
+var debug = require('debug')('ChatUp:ChatWorker:master');
+import {sticky} from './lib/sticky';
 import {WSHandler} from './lib/WSHandler';
 import {registerWorker} from './lib/workerManager';
-
-var debug = cluster.isMaster ? require('debug')('ChatUp:ChatWorker:master') : _.noop;
 
 export interface ChatWorkerConf {
   redis?: {
     port: number;
     host: string;
   };
+  uuid?: string;
   port?: number;
   host?: string;
   origins?: string;
   threads?: number;
   sticky?: boolean;
   msgBufferDelay?: number;
+  expireDelay?: number;
 };
 
-export class ChatMessage {
+export interface ChatMessage {
   msg: string;
   user: {};
 }
@@ -34,7 +34,8 @@ export class ChatWorker {
     origins: '*',
     threads: require('os').cpus().length,
     sticky: true,
-    msgBufferDelay: 500
+    msgBufferDelay: 500,
+    expireDelay: 2000
   };
 
   _conf: ChatWorkerConf;
@@ -50,7 +51,6 @@ export class ChatWorker {
       data: this._conf
     });
     debug('Finished Init');
-
   }
 
   listen():Promise<void> {
@@ -64,7 +64,7 @@ export class ChatWorker {
         debug('Listening on %s', this._conf.port);
         this._conf.port = this._conf.port || this._server.address().port;
         debug('Registering the worker');
-        registerWorker(this).then(resolve);
+        registerWorker(this).then(resolve).catch(reject);
       });
     });
   }

@@ -1,15 +1,8 @@
-var sticky_1 = require('./lib/sticky');
 var _ = require('lodash');
-var cluster = require('cluster');
+var debug = require('debug')('ChatUp:ChatWorker:master');
+var sticky_1 = require('./lib/sticky');
 var workerManager_1 = require('./lib/workerManager');
-var debug = cluster.isMaster ? require('debug')('ChatUp:ChatWorker:master') : _.noop;
 ;
-var ChatMessage = (function () {
-    function ChatMessage() {
-    }
-    return ChatMessage;
-})();
-exports.ChatMessage = ChatMessage;
 var ChatWorker = (function () {
     function ChatWorker(conf) {
         debug('Init');
@@ -33,7 +26,7 @@ var ChatWorker = (function () {
                 debug('Listening on %s', _this._conf.port);
                 _this._conf.port = _this._conf.port || _this._server.address().port;
                 debug('Registering the worker');
-                workerManager_1.registerWorker(_this).then(resolve);
+                workerManager_1.registerWorker(_this).then(resolve).catch(reject);
             });
         });
     };
@@ -45,7 +38,8 @@ var ChatWorker = (function () {
         origins: '*',
         threads: require('os').cpus().length,
         sticky: true,
-        msgBufferDelay: 500
+        msgBufferDelay: 500,
+        expireDelay: 2000
     };
     return ChatWorker;
 })();

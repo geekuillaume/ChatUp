@@ -17,7 +17,6 @@
     "files": [
         "./chatWorker/index.ts",
         "./chatWorker/lib/WSHandler.ts",
-        "./chatWorker/lib/portFinder.ts",
         "./chatWorker/lib/sticky.ts",
         "./chatWorker/lib/store.ts",
         "./chatWorker/lib/workerManager.ts",
