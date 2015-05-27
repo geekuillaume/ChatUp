@@ -3,7 +3,7 @@ import _ = require('lodash');
 import dispatchHandler = require('./lib/dispatchHandler');
 import WorkersManager = require('./lib/workersManager');
 
-export interface DispatcherWorkerHost {
+export interface workerHost {
   port: number;
   host: string;
 }
@@ -13,8 +13,8 @@ interface DispatcherConf {
     port: number;
     host: string;
   };
-  workers?: DispatcherWorkerHost[];
   origins?: string;
+  workerRefreshInterval?: number;
 }
 
 interface request extends express.Request {
@@ -27,15 +27,15 @@ export class Dispatcher {
       port: 6379,
       host: "127.0.0.1"
     },
-    workers: [],
-    origins: '*'
+    origins: '*',
+    workerRefreshInterval: 2000
   };
 
   _router: express.Router;
   _conf: DispatcherConf;
   _workersManager: WorkersManager;
 
-  constructor(conf: DispatcherConf) {
+  constructor(conf: DispatcherConf = {}) {
     this._router = express.Router();
     this._conf = _.defaults(conf, Dispatcher.defaultConf);
     this._router.use(this._handleError);

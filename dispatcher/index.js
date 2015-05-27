@@ -5,6 +5,7 @@ var WorkersManager = require('./lib/workersManager');
 var Dispatcher = (function () {
     function Dispatcher(conf) {
         var _this = this;
+        if (conf === void 0) { conf = {}; }
         this._handleError = function (err, req, res, next) {
             res.send(400, { err: err });
         };
@@ -35,8 +36,8 @@ var Dispatcher = (function () {
             port: 6379,
             host: "127.0.0.1"
         },
-        workers: [],
-        origins: '*'
+        origins: '*',
+        workerRefreshInterval: 2000
     };
     return Dispatcher;
 })();

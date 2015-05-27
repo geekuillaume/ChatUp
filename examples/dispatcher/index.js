@@ -3,12 +3,7 @@ var express = require('express');
 
 var app = express();
 
-var dispatcher = new ChatUp.Dispatcher({
-  workers: [{
-    host: 'http://127.0.0.1',
-    port: '8001'
-  }]
-});
+var dispatcher = new ChatUp.Dispatcher();
 
 dispatcher.register(app);
 
