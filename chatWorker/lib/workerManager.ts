@@ -1,6 +1,8 @@
 var got = require('got');
 var debug = require('debug')('ChatUp:ChatWorker:master');
 var uuid = require('node-uuid');
+import url = require('url');
+import _ = require('lodash');
 import {ChatWorker} from '../index';
 import redis = require('redis');
 
@@ -8,6 +10,8 @@ export var registerWorker = function(worker: ChatWorker):Promise<void> {
   var redisConnection = redis.createClient(worker._conf.redis.port, worker._conf.redis.host);
   return validateWorkerInfos(worker).then(function() {
     return registerInRedis(worker, redisConnection);
+  }).then(function() {
+    startWSHandlersMonitoring(worker);
   }).then(function() {
     startAlivePing(worker, redisConnection);
   });
@@ -18,16 +22,33 @@ function validateWorkerInfos(worker: ChatWorker): Promise<void> {
     if (!worker._conf.uuid) {
       worker._conf.uuid = uuid.v4();
     }
-    if (worker._conf.host) {
+    if (worker._conf.hostname) {
       return resolve();
     }
     got('https://api.ipify.org', function(err, ip) {
       if (err) {
         return reject(new Error("Couldn't get worker ip address"));
       }
-      worker._conf.host = ip;
+      worker._conf.hostname = ip;
       resolve();
     });
+  }).then(function() {
+    worker._conf.host = url.format({
+      hostname: worker._conf.hostname,
+      protocol: 'http',
+      port: worker._conf.port.toString()
+    })
+  });
+}
+
+function startWSHandlersMonitoring(worker: ChatWorker) {
+  _.each(worker._workers, (worker) => {
+    worker.on('message', (message) => {
+      if (!_.isObject(message) || message.type !== 'chatUp:stats') {
+        return;
+      }
+      worker.stats = message.stats;
+    })
   });
 }
 
@@ -37,7 +58,7 @@ function registerInRedis(worker: ChatWorker, redisConnection: redis.RedisClient)
     redisConnection.multi()
       .hmset(keyName, {
         host: worker._conf.host,
-        port: worker._conf.port
+        connections: _(worker._workers).map('stats').map('connections').sum()
       })
       .pexpire(keyName, worker._conf.expireDelay)
       .exec((err, results) => {

@@ -1,6 +1,7 @@
 import net = require('net');
 import cluster = require('cluster');
 import _ = require('lodash');
+var debug = require('debug')('ChatUp:ChatWorker:master');
 
 // Copied from the great module of indutny : sticky-session
 // https://github.com/indutny/sticky-session
@@ -49,7 +50,7 @@ export var sticky = function(file, opt: StickyOptions) {
 
   // Master will spawn `num` workers
   if (cluster.isMaster) {
-    var workers = [];
+    var workers: cluster.Worker[] = [];
     function spawn(i) {
       workers[i] = cluster.fork();
       // Restart worker on exit
@@ -58,6 +59,9 @@ export var sticky = function(file, opt: StickyOptions) {
         spawn(i);
       });
       workers[i].send({type: 'sticky-startconfig', data: opt.data});
+      workers[i].on('error', function(err) {
+        console.log('Error:', err);
+      })
     }
     for (var i = 0; i < options.threads; i++) {
       spawn(i);
@@ -74,12 +78,12 @@ export var sticky = function(file, opt: StickyOptions) {
       } else {
         worker = _.sample(workers);
       }
-
+      debug('Sending connection from %s to a worker', c.remoteAddress);
       worker.send('sticky-session:connection', c);
     });
   }
 
-  return server;
+  return {server, workers};
 }
 
 export var stickyClient = function(cb:(conf: {}) => any) {

@@ -3,6 +3,7 @@ var debug = require('debug')('ChatUp:ChatWorker:master');
 import {sticky} from './lib/sticky';
 import {WSHandler} from './lib/WSHandler';
 import {registerWorker} from './lib/workerManager';
+import cluster = require('cluster');
 
 export interface ChatWorkerConf {
   redis?: {
@@ -11,13 +12,18 @@ export interface ChatWorkerConf {
   };
   uuid?: string;
   port?: number;
-  host?: string;
+  hostname?: string;
   origins?: string;
   threads?: number;
   sticky?: boolean;
   msgBufferDelay?: number;
   expireDelay?: number;
+  host?: string;
 };
+
+export interface WSHandlerWorker extends cluster.Worker {
+  stats?: {}
+}
 
 export interface ChatMessage {
   msg: string;
@@ -40,16 +46,19 @@ export class ChatWorker {
 
   _conf: ChatWorkerConf;
 
+  _workers: WSHandlerWorker[];
   _server: any;
 
   constructor(conf: ChatWorkerConf) {
     debug('Init');
     this._conf = _.defaults(conf, ChatWorker.defaultConf);
-    this._server = sticky(__dirname + '/lib/WSHandler.js', {
+    var infos = sticky(__dirname + '/lib/WSHandler.js', {
       sticky: this._conf.sticky,
       threads: this._conf.threads,
       data: this._conf
     });
+    this._server = infos.server;
+    this._workers = infos.workers;
     debug('Finished Init');
   }
 
@@ -61,8 +70,8 @@ export class ChatWorker {
           debug('Error while listening', err);
           return reject(err);
         }
-        debug('Listening on %s', this._conf.port);
         this._conf.port = this._conf.port || this._server.address().port;
+        debug('Listening on %s', this._conf.port);
         debug('Registering the worker');
         registerWorker(this).then(resolve).catch(reject);
       });

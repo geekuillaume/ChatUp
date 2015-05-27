@@ -31,6 +31,18 @@ export class WSHandler {
     this._store = new Store(this);
     this._io.on('connection', this._onConnection);
     this._sockets = [];
+    this._initStatsReporting();
+  }
+
+  _initStatsReporting = () => {
+    setInterval(() => {
+      process.send({
+        type: 'chatUp:stats',
+        stats: {
+          connections: this._sockets.length
+        }
+      });
+    }, 200);
   }
 
   _onConnection = (socket: SocketIO.Socket) => {
@@ -117,6 +129,7 @@ class ChatUpSocket {
     if (this._room) {
       this._room.quit();
     }
+    _.remove(this._parent._sockets, this);
   }
 
 }

@@ -7,11 +7,13 @@ var ChatWorker = (function () {
     function ChatWorker(conf) {
         debug('Init');
         this._conf = _.defaults(conf, ChatWorker.defaultConf);
-        this._server = sticky_1.sticky(__dirname + '/lib/WSHandler.js', {
+        var infos = sticky_1.sticky(__dirname + '/lib/WSHandler.js', {
             sticky: this._conf.sticky,
             threads: this._conf.threads,
             data: this._conf
         });
+        this._server = infos.server;
+        this._workers = infos.workers;
         debug('Finished Init');
     }
     ChatWorker.prototype.listen = function () {
@@ -23,8 +25,8 @@ var ChatWorker = (function () {
                     debug('Error while listening', err);
                     return reject(err);
                 }
-                debug('Listening on %s', _this._conf.port);
                 _this._conf.port = _this._conf.port || _this._server.address().port;
+                debug('Listening on %s', _this._conf.port);
                 debug('Registering the worker');
                 workerManager_1.registerWorker(_this).then(resolve).catch(reject);
             });

@@ -79,13 +79,14 @@ var ChatUp = (function () {
                 });
             });
         };
-        this._connectSocket = function (workerInfos) {
+        this._connectSocket = function (worker) {
             return new Promise(function (resolve, reject) {
-                _this._socket = io(workerInfos.host + ':' + workerInfos.port, _this._conf.socketIO);
+                _this._socket = io(worker.host, _this._conf.socketIO);
                 _this._socket.on('connect', function () {
                     resolve();
                 });
                 _this._socket.on('connect_error', function (err) {
+                    console.error('Couldn\'t connect to socket, retrying', err);
                     _.after(2, function () {
                         reject(err);
                     });

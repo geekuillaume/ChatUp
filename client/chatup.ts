@@ -129,13 +129,14 @@ class ChatUp {
     });
   }
 
-  _connectSocket = (workerInfos):Promise<any> => {
+  _connectSocket = (worker):Promise<any> => {
     return new Promise((resolve, reject) => {
-      this._socket = io(workerInfos.host + ':' + workerInfos.port, this._conf.socketIO);
+      this._socket = io(worker.host, this._conf.socketIO);
       this._socket.on('connect', () => {
         resolve();
       });
       this._socket.on('connect_error', (err) => {
+        console.error('Couldn\'t connect to socket, retrying', err);
         _.after(2, function() {
           reject(err);
         });

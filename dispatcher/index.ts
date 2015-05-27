@@ -4,8 +4,8 @@ import dispatchHandler = require('./lib/dispatchHandler');
 import WorkersManager = require('./lib/workersManager');
 
 export interface workerHost {
-  port: number;
   host: string;
+  connections: number;
 }
 
 interface DispatcherConf {

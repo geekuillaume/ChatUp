@@ -12,6 +12,16 @@ sticky_1.stickyClient(function (conf) {
 var WSHandler = (function () {
     function WSHandler(conf) {
         var _this = this;
+        this._initStatsReporting = function () {
+            setInterval(function () {
+                process.send({
+                    type: 'chatUp:stats',
+                    stats: {
+                        connections: _this._sockets.length
+                    }
+                });
+            }, 200);
+        };
         this._onConnection = function (socket) {
             _this._debug('Got connection %s from %s', socket.id, socket.client.conn.remoteAddress);
             _this._sockets.push(new ChatUpSocket(socket, _this));
@@ -26,6 +36,7 @@ var WSHandler = (function () {
         this._store = new store_1.Store(this);
         this._io.on('connection', this._onConnection);
         this._sockets = [];
+        this._initStatsReporting();
     }
     Object.defineProperty(WSHandler.prototype, "server", {
         get: function () {
@@ -87,6 +98,7 @@ var ChatUpSocket = (function () {
             if (_this._room) {
                 _this._room.quit();
             }
+            _.remove(_this._parent._sockets, _this);
         };
         this._debug = debugFactory('ChatUp:ChatWorker:client:' + socket.id);
         this._socket = socket;

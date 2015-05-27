@@ -1,12 +1,13 @@
 import Dispatcher = require('../index');
 import _ = require('lodash');
 import redis = require('redis');
+var debug = require('debug')('ChatUp:Dispatcher');
 
 class WorkersManager {
   _parent: Dispatcher.Dispatcher;
   _redisConnection: redis.RedisClient;
 
-  _workers: {[index: string]: Dispatcher.workerHost};
+  _workers: Dispatcher.workerHost[];
 
   constructor(parent: Dispatcher.Dispatcher) {
     this._parent = parent;
@@ -26,12 +27,12 @@ class WorkersManager {
         if (err) {
           console.error('Error on redis command:', err);
         } else {
-          this._workers = {};
-          _.each(workersName, (name, i) => {
-            this._workers[name] = workersInfo[i];
-            this._workers[name].port = Number(workersInfo[i].port);
+          this._workers = workersInfo;
+          _.each(this._workers, (worker) => {
+            worker.connections = Number(worker.connections);
           });
           console.log(this._workers);
+          debug('Refreshed and got %s workers', this._workers.length);
         }
         setTimeout(this._workerRefresh, this._parent._conf.workerRefreshInterval).unref();
       });
@@ -41,14 +42,19 @@ class WorkersManager {
   getAvailable(): Promise<Dispatcher.workerHost> {
     return new Promise<Dispatcher.workerHost>((resolve, reject) => {
 
-      var worker = <Dispatcher.workerHost>_.sample(this._workers);
+      var worker = <Dispatcher.workerHost>_(this._workers).sortBy('connections').first();
+      console.log(_(this._workers).sortBy('connections').value());
 
+      // var worker = <Dispatcher.workerHost>_.sample(this._workers);
+      debug('Found one worker at host %s', worker.host);
       if (worker) {
         resolve(worker);
       }
       else {
         reject(new Error('No worker available'));
       }
+      worker.connections++;
+      console.log('worker.connections', worker.connections);
     });
   }
 };

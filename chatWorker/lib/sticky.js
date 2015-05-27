@@ -1,6 +1,7 @@
 var net = require('net');
 var cluster = require('cluster');
 var _ = require('lodash');
+var debug = require('debug')('ChatUp:ChatWorker:master');
 function hash(ip, seed) {
     var hash = ip.reduce(function (r, num) {
         r += parseInt(num, 10);
@@ -37,6 +38,9 @@ exports.sticky = function (file, opt) {
                 spawn(i);
             });
             workers[i].send({ type: 'sticky-startconfig', data: opt.data });
+            workers[i].on('error', function (err) {
+                console.log('Error:', err);
+            });
         }
         for (var i = 0; i < options.threads; i++) {
             spawn(i);
@@ -51,10 +55,11 @@ exports.sticky = function (file, opt) {
             else {
                 worker = _.sample(workers);
             }
+            debug('Sending connection from %s to a worker', c.remoteAddress);
             worker.send('sticky-session:connection', c);
         });
     }
-    return server;
+    return { server: server, workers: workers };
 };
 exports.stickyClient = function (cb) {
     process.on('message', function (message) {
