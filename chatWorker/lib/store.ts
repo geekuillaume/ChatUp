@@ -3,34 +3,45 @@ import redis = require('redis');
 import _ = require('lodash');
 import {ChatMessage} from '../index';
 import {WSHandler} from './WSHandler';
+import superagent = require('superagent');
+import {ChatWorkerConf} from '../index';
+var Agent = require('agentkeepalive');
 var debugFactory = require('debug');
 
 export class Store {
 
-  _parent: WSHandler;
+  _conf: ChatWorkerConf;
   _rooms: {[index: string]: Room};
   _debug: Function;
 
   _pubClient: redis.RedisClient;
   _subClient: redis.RedisClient;
 
-  constructor(parent: WSHandler) {
+  _agent: any;
+
+  constructor(conf: ChatWorkerConf, master = false) {
     this._debug = debugFactory('ChatUp:Store:' + process.pid);
     this._debug('Store created');
-    this._parent = parent;
-    this._pubClient = redis.createClient(this._parent._conf.redis.port, this._parent._conf.redis.host);
-    this._subClient = redis.createClient(this._parent._conf.redis.port, this._parent._conf.redis.host);
+    this._conf = conf;
+    this._pubClient = redis.createClient(this._conf.redis.port, this._conf.redis.host);
+    this._subClient = redis.createClient(this._conf.redis.port, this._conf.redis.host);
     this._rooms = {};
 
-    this._subClient.on('message', (roomName, message) => {
-      var room = this._rooms[roomName];
-      if (!room) {
-        return this._debug('Got from an unknown room, subscription not cleared')
-      }
-      this._debug('Got from Redis on room %s', roomName);
-      room._pushMessage(message);
-    });
+    if (master) {
+      this._subClient.psubscribe('room*');
+      this._agent = new Agent({});
+    }
+    this._subClient.on('pmessage', this._treatMessage);
+  }
 
+  _treatMessage = (pattern, roomName, message) => {
+    this._debug('Got from Redis on room %s', roomName);
+    var room = this._rooms[roomName];
+    if (!room) {
+      room = new Room(roomName, this);
+      this._rooms[roomName] = room;
+    }
+    room._pushMessage(message);
   }
 
   joinRoom = (roomName: string): Room => {
@@ -43,14 +54,8 @@ export class Store {
     return room;
   }
 
-  _sub = (roomName) => {
-    this._subClient.subscribe(roomName);
-  }
-  _unsub = (roomName) => {
-    this._subClient.unsubscribe(roomName);
-  }
-
   _pub = (roomName, message) => {
+    this._debug("Sending on redis in room %s", roomName);
     this._pubClient.publish(roomName, JSON.stringify(message));
   }
 
@@ -73,7 +78,7 @@ export class Room extends EventEmitter {
     this._joined = 0;
     this._messageBuffer = [];
     this._handlers = [];
-    setInterval(this._drain, this._parent._parent._conf.msgBufferDelay);
+    setInterval(this._drain, this._parent._conf.msgBufferDelay);
   }
 
   say = (message: ChatMessage) => {
@@ -84,10 +89,18 @@ export class Room extends EventEmitter {
   _drain = () => {
     if (this._messageBuffer.length) {
       this._debug('Draining %s messages', this._messageBuffer.length);
-      _.each(this._handlers, (handler) => {
-        handler(this._messageBuffer);
-      });
-      this.emit('msg', this._messageBuffer);
+      // _.each(this._handlers, (handler) => {
+      //   handler(this._messageBuffer);
+      // });
+      // this.emit('msg', this._messageBuffer);
+      var messageBufferLength = this._messageBuffer.length;
+      superagent.post('http://'+ this._parent._conf.nginx.host +':'+ this._parent._conf.nginx.port +'/pub')
+        .agent(this._parent._agent)
+        .query({id: this.name})
+        .send(this._messageBuffer)
+        .end((err, data) => {
+          this._debug('Sent %s messages to nginx', messageBufferLength);
+        });
       this._messageBuffer = [];
     }
   }
@@ -114,20 +127,9 @@ export class Room extends EventEmitter {
   join = () => {
     this._debug('Join');
     this._joined++;
-    if (this._joined === 1) {
-      this._parent._sub(this.name);
-    }
   }
   quit = () => {
     this._debug('Quit');
     this._joined--;
-    if (this._joined <= 0) {
-      this._destroy();
-    }
-  }
-  _destroy = () => {
-    this._debug('Destroy');
-    this._parent._unsub(this.name);
-    this._messageBuffer = [];
   }
 }

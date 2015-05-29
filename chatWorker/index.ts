@@ -3,6 +3,7 @@ var debug = require('debug')('ChatUp:ChatWorker:master');
 import {sticky} from './lib/sticky';
 import {WSHandler} from './lib/WSHandler';
 import {registerWorker} from './lib/workerManager';
+import {Store} from './lib/store';
 import cluster = require('cluster');
 
 export interface ChatWorkerConf {
@@ -19,6 +20,10 @@ export interface ChatWorkerConf {
   msgBufferDelay?: number;
   expireDelay?: number;
   host?: string;
+  nginx?: {
+    host: string;
+    port: number;
+  }
 };
 
 export interface WSHandlerWorker extends cluster.Worker {
@@ -41,13 +46,18 @@ export class ChatWorker {
     threads: require('os').cpus().length,
     sticky: true,
     msgBufferDelay: 500,
-    expireDelay: 2000
+    expireDelay: 2000,
+    nginx: {
+      host: '127.0.0.1',
+      port: 42632
+    }
   };
 
   _conf: ChatWorkerConf;
 
   _workers: WSHandlerWorker[];
   _server: any;
+  _store: Store;
 
   constructor(conf: ChatWorkerConf) {
     debug('Init');
@@ -59,6 +69,7 @@ export class ChatWorker {
     });
     this._server = infos.server;
     this._workers = infos.workers;
+    this._store = new Store(this._conf, true);
     debug('Finished Init');
   }
 

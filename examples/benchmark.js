@@ -15,7 +15,7 @@ var benchmarkOptions = {
   threads: (argv.t || 1),
   startDelay: 5000,
   startDelayInterval: 500,
-  dispatcherURL: argv.dispatcher || 'http://localhost:8000/'
+  dispatcherURL: argv.dispatcher || 'http://127.0.0.1:8000/'
 };
 
 
@@ -90,7 +90,7 @@ function benchmark(options) {
       }, options.logInterval / 2);
 
     }).catch(function(err) {
-      console.error("Couldn't create chats client:", err);
+      console.error("Couldn't create chats client:", err.stack);
     });
   }
 }

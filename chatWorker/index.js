@@ -2,6 +2,7 @@ var _ = require('lodash');
 var debug = require('debug')('ChatUp:ChatWorker:master');
 var sticky_1 = require('./lib/sticky');
 var workerManager_1 = require('./lib/workerManager');
+var store_1 = require('./lib/store');
 ;
 var ChatWorker = (function () {
     function ChatWorker(conf) {
@@ -14,6 +15,7 @@ var ChatWorker = (function () {
         });
         this._server = infos.server;
         this._workers = infos.workers;
+        this._store = new store_1.Store(this._conf, true);
         debug('Finished Init');
     }
     ChatWorker.prototype.listen = function () {
@@ -41,7 +43,11 @@ var ChatWorker = (function () {
         threads: require('os').cpus().length,
         sticky: true,
         msgBufferDelay: 500,
-        expireDelay: 2000
+        expireDelay: 2000,
+        nginx: {
+            host: '127.0.0.1',
+            port: 42632
+        }
     };
     return ChatWorker;
 })();

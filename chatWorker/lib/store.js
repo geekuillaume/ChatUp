@@ -7,10 +7,22 @@ var __extends = (this && this.__extends) || function (d, b) {
 var events_1 = require('events');
 var redis = require('redis');
 var _ = require('lodash');
+var superagent = require('superagent');
+var Agent = require('agentkeepalive');
 var debugFactory = require('debug');
 var Store = (function () {
-    function Store(parent) {
+    function Store(conf, master) {
         var _this = this;
+        if (master === void 0) { master = false; }
+        this._treatMessage = function (pattern, roomName, message) {
+            _this._debug('Got from Redis on room %s', roomName);
+            var room = _this._rooms[roomName];
+            if (!room) {
+                room = new Room(roomName, _this);
+                _this._rooms[roomName] = room;
+            }
+            room._pushMessage(message);
+        };
         this.joinRoom = function (roomName) {
             var room = _this._rooms[roomName];
             if (!room) {
@@ -20,29 +32,21 @@ var Store = (function () {
             room.join();
             return room;
         };
-        this._sub = function (roomName) {
-            _this._subClient.subscribe(roomName);
-        };
-        this._unsub = function (roomName) {
-            _this._subClient.unsubscribe(roomName);
-        };
         this._pub = function (roomName, message) {
+            _this._debug("Sending on redis in room %s", roomName);
             _this._pubClient.publish(roomName, JSON.stringify(message));
         };
         this._debug = debugFactory('ChatUp:Store:' + process.pid);
         this._debug('Store created');
-        this._parent = parent;
-        this._pubClient = redis.createClient(this._parent._conf.redis.port, this._parent._conf.redis.host);
-        this._subClient = redis.createClient(this._parent._conf.redis.port, this._parent._conf.redis.host);
+        this._conf = conf;
+        this._pubClient = redis.createClient(this._conf.redis.port, this._conf.redis.host);
+        this._subClient = redis.createClient(this._conf.redis.port, this._conf.redis.host);
         this._rooms = {};
-        this._subClient.on('message', function (roomName, message) {
-            var room = _this._rooms[roomName];
-            if (!room) {
-                return _this._debug('Got from an unknown room, subscription not cleared');
-            }
-            _this._debug('Got from Redis on room %s', roomName);
-            room._pushMessage(message);
-        });
+        if (master) {
+            this._subClient.psubscribe('room*');
+            this._agent = new Agent({});
+        }
+        this._subClient.on('pmessage', this._treatMessage);
     }
     return Store;
 })();
@@ -59,10 +63,14 @@ var Room = (function (_super) {
         this._drain = function () {
             if (_this._messageBuffer.length) {
                 _this._debug('Draining %s messages', _this._messageBuffer.length);
-                _.each(_this._handlers, function (handler) {
-                    handler(_this._messageBuffer);
+                var messageBufferLength = _this._messageBuffer.length;
+                superagent.post('http://' + _this._parent._conf.nginx.host + ':' + _this._parent._conf.nginx.port + '/pub')
+                    .agent(_this._parent._agent)
+                    .query({ id: _this.name })
+                    .send(_this._messageBuffer)
+                    .end(function (err, data) {
+                    _this._debug('Sent %s messages to nginx', messageBufferLength);
                 });
-                _this.emit('msg', _this._messageBuffer);
                 _this._messageBuffer = [];
             }
         };
@@ -87,21 +95,10 @@ var Room = (function (_super) {
         this.join = function () {
             _this._debug('Join');
             _this._joined++;
-            if (_this._joined === 1) {
-                _this._parent._sub(_this.name);
-            }
         };
         this.quit = function () {
             _this._debug('Quit');
             _this._joined--;
-            if (_this._joined <= 0) {
-                _this._destroy();
-            }
-        };
-        this._destroy = function () {
-            _this._debug('Destroy');
-            _this._parent._unsub(_this.name);
-            _this._messageBuffer = [];
         };
         this._debug = debugFactory('ChatUp:Store:Room:' + name + ':' + process.pid);
         this._debug('Created room');
@@ -110,7 +107,7 @@ var Room = (function (_super) {
         this._joined = 0;
         this._messageBuffer = [];
         this._handlers = [];
-        setInterval(this._drain, this._parent._parent._conf.msgBufferDelay);
+        setInterval(this._drain, this._parent._conf.msgBufferDelay);
     }
     return Room;
 })(events_1.EventEmitter);

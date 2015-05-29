@@ -4,7 +4,7 @@ var benchmarkOptions = {
   messageLength: argv.messageLength || 120,
   interval: argv.interval || 100,
   logInterval: argv.logInterval || 2000,
-  connexions: (argv.connexions || 1) / (argv.t || 1),
+  connexions: (argv.connexions || 10) / (argv.t || 1),
   roomsNumber: argv.rooms || 1,
   threads: (argv.t || 1),
   dispatcherURL: 'http://localhost:8000/'
@@ -18,7 +18,8 @@ function benchmark(options) {
     return new ChatUp({
       dispatcherURL: options.dispatcherURL,
       userInfo: {name: randomId(20)},
-      room: _.sample(rooms)
+      room: _.sample(rooms),
+      socketIO: {transports: ['websocket'], multiplex: false}
     }).init();
   })).then(function(sockets) {
     console.log('%s workers started and connected', sockets.length);

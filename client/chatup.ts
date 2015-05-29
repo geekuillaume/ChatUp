@@ -3,12 +3,15 @@ var io = require('socket.io-client');
 import _ = require('lodash');
 var es6shim = require('es6-shim');
 var now = require('performance-now');
+var PushStream = require('./nginx-pushstream.js');
+import url = require('url');
 
 interface ChatUpConf {
   dispatcherURL: string;
   userInfo: {};
   room: string;
   socketIO: {};
+  nginxPort: number;
 }
 
 interface ChatUpStats {
@@ -25,11 +28,14 @@ class ChatUp {
     room: 'defaultRoom',
     socketIO: {
       timeout: 5000
-    }
+    },
+    nginxPort: 42632
   }
 
   _conf: ChatUpConf;
   _socket: any;
+  _pushStream: any;
+  _msgHandlers: Function[];
 
   _initPromise: Promise<any>;
 
@@ -39,9 +45,10 @@ class ChatUp {
     this._conf = conf;
     _.defaults(conf, ChatUp.defaultConf);
     _.defaults(conf.socketIO, ChatUp.defaultConf.socketIO);
+    this._msgHandlers = [];
     this._stats = {
       msgSent: 0,
-      msgReceived:0,
+      msgReceived: 0,
       latency:Infinity
     };
   }
@@ -53,13 +60,17 @@ class ChatUp {
   init = ():Promise<any> => {
     if (this._initPromise)
       return this._initPromise;
-    return this._initPromise = this._getChatWorker()
-    .then(this._connectSocket)
-    .then(this._authenticate)
-    .then(this._join)
-    .then(() => {
-      return this;
-    });
+
+    var promise = this._initPromise = this._getChatWorker().then(this._connectSocket);
+
+    if (this._conf.userInfo) { // Only authenticate if got userInfos
+      promise = promise.then(this._authenticate);
+    }
+
+    return promise.then(this._join)
+      .then(() => {
+        return this;
+      });
   }
 
   say = (message):Promise<any> => {
@@ -78,14 +89,20 @@ class ChatUp {
   }
 
   onMsg = (handler) => {
-    this._waitInit(() => {
-      this._socket.on('msg', (messages) => {
-        for (let message of messages) {
-          this._stats.msgReceived++;
-          handler(message);
-        }
-      });
-    });
+    this._msgHandlers.push(handler)
+  }
+
+  _handleMessagesBuffer = (data) => {
+    var messages;
+    try {
+      messages = JSON.parse(data);
+    } catch (e) {}
+    for (let message of messages) {
+      this._stats.msgReceived++;
+      for(let handler of this._msgHandlers) {
+        handler(message);
+      }
+    }
   }
 
   _waitInit = (fct: Function):Promise<any> => {
@@ -130,6 +147,14 @@ class ChatUp {
   }
 
   _connectSocket = (worker):Promise<any> => {
+    this._pushStream = new PushStream.PushStream({
+      host: url.parse(worker.host).hostname,
+      port: this._conf.nginxPort,
+      modes: 'websocket|eventsource|longpolling'
+    });
+    this._pushStream.onmessage = this._handleMessagesBuffer;
+    this._pushStream.addChannel(this._conf.room);
+    this._pushStream.connect();
     return new Promise((resolve, reject) => {
       this._socket = io(worker.host, this._conf.socketIO);
       this._socket.on('connect', () => {

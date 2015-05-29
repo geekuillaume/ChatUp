@@ -28,7 +28,7 @@ export class WSHandler {
     this._io = socketio(this._app, {
       serverClient: false
     });
-    this._store = new Store(this);
+    this._store = new Store(this._conf);
     this._io.on('connection', this._onConnection);
     this._sockets = [];
     this._initStatsReporting();

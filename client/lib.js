@@ -1,4 +1,1278 @@
 (function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.ChatUp = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+/*global PushStream WebSocketWrapper EventSourceWrapper EventSource*/
+/*jshint evil: true, plusplus: false, regexp: false */
+/**
+The MIT License (MIT)
+
+Copyright (c) 2010-2014 Wandenberg Peixoto <wandenberg@gmail.com>, Rogério Carvalho Schneider <stockrt@gmail.com>
+
+This file is part of Nginx Push Stream Module.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+pushstream.js
+
+Created: Nov 01, 2011
+Authors: Wandenberg Peixoto <wandenberg@gmail.com>, Rogério Carvalho Schneider <stockrt@gmail.com>
+*/
+"use strict";
+
+var urlParser = require('url').parse;
+
+if (typeof window === 'undefined') {
+  var window = {
+    location: {},
+    escape: function(text) {return text},
+    WebSocket: require('ws')
+  };
+}
+if (typeof document === 'undefined') {
+  var document = {};
+}
+
+/* prevent duplicate declaration */
+if (window.PushStream) {
+  return;
+}
+
+var Utils = {};
+
+var days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+var valueToTwoDigits = function(value) {
+  return ((value < 10) ? '0' : '') + value;
+};
+
+Utils.dateToUTCString = function(date) {
+  var time = valueToTwoDigits(date.getUTCHours()) + ':' + valueToTwoDigits(date.getUTCMinutes()) + ':' + valueToTwoDigits(date.getUTCSeconds());
+  return days[date.getUTCDay()] + ', ' + valueToTwoDigits(date.getUTCDate()) + ' ' + months[date.getUTCMonth()] + ' ' + date.getUTCFullYear() + ' ' + time + ' GMT';
+};
+
+var extend = function() {
+  var object = arguments[0] || {};
+  for (var i = 0; i < arguments.length; i++) {
+    var settings = arguments[i];
+    for (var attr in settings) {
+      if (!settings.hasOwnProperty || settings.hasOwnProperty(attr)) {
+        object[attr] = settings[attr];
+      }
+    }
+  }
+  return object;
+};
+
+var validChars = /^[\],:{}\s]*$/,
+  validEscape = /\\(?:["\\\/bfnrt]|u[0-9a-fA-F]{4})/g,
+  validTokens = /"[^"\\\n\r]*"|true|false|null|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?/g,
+  validBraces = /(?:^|:|,)(?:\s*\[)+/g;
+
+var trim = function(value) {
+  return value.replace(/^\s*/, "").replace(/\s*$/, "");
+};
+
+Utils.parseJSON = function(data) {
+  if (!data || !isString(data)) {
+    return null;
+  }
+
+  // Make sure leading/trailing whitespace is removed (IE can't handle it)
+  data = trim(data);
+
+  // Attempt to parse using the native JSON parser first
+  if (window.JSON && window.JSON.parse) {
+    try {
+      return window.JSON.parse(data);
+    } catch (e) {
+      throw "Invalid JSON: " + data;
+    }
+  }
+
+  // Make sure the incoming data is actual JSON
+  // Logic borrowed from http://json.org/json2.js
+  if (validChars.test(data.replace(validEscape, "@").replace(validTokens, "]").replace(validBraces, ""))) {
+    return (new Function("return " + data))();
+  }
+
+  throw "Invalid JSON: " + data;
+};
+
+var getControlParams = function(pushstream) {
+  var data = {};
+  data[pushstream.tagArgument] = "";
+  data[pushstream.timeArgument] = "";
+  data[pushstream.eventIdArgument] = "";
+  if (pushstream.messagesControlByArgument) {
+    data[pushstream.tagArgument] = Number(pushstream._etag);
+    if (pushstream._lastModified) {
+      data[pushstream.timeArgument] = pushstream._lastModified;
+    } else if (pushstream._lastEventId) {
+      data[pushstream.eventIdArgument] = pushstream._lastEventId;
+    }
+  }
+  return data;
+};
+
+var getTime = function() {
+  return (new Date()).getTime();
+};
+
+var currentTimestampParam = function() {
+  return {
+    "_": getTime()
+  };
+};
+
+var objectToUrlParams = function(settings) {
+  var params = settings;
+  if (typeof(settings) === 'object') {
+    params = '';
+    for (var attr in settings) {
+      if (!settings.hasOwnProperty || settings.hasOwnProperty(attr)) {
+        params += '&' + attr + '=' + window.escape(settings[attr]);
+      }
+    }
+    params = params.substring(1);
+  }
+
+  return params || '';
+};
+
+var addParamsToUrl = function(url, params) {
+  return url + ((url.indexOf('?') < 0) ? '?' : '&') + objectToUrlParams(params);
+};
+
+var isArray = Array.isArray || function(obj) {
+  return Object.prototype.toString.call(obj) === '[object Array]';
+};
+
+var isString = function(obj) {
+  return Object.prototype.toString.call(obj) === '[object String]';
+};
+
+var isDate = function(obj) {
+  return Object.prototype.toString.call(obj) === '[object Date]';
+};
+
+var Log4js = {
+  logger: null,
+  debug: function() {
+    if (PushStream.LOG_LEVEL === 'debug') {
+      Log4js._log.apply(Log4js._log, arguments);
+    }
+  },
+  info: function() {
+    if ((PushStream.LOG_LEVEL === 'info') || (PushStream.LOG_LEVEL === 'debug')) {
+      Log4js._log.apply(Log4js._log, arguments);
+    }
+  },
+  error: function() {
+    Log4js._log.apply(Log4js._log, arguments);
+  },
+  _initLogger: function() {
+    var console = window.console;
+    if (console && console.log) {
+      if (console.log.apply) {
+        Log4js.logger = console.log;
+      } else if ((typeof console.log === "object") && Function.prototype.bind) {
+        Log4js.logger = Function.prototype.bind.call(console.log, console);
+      } else if ((typeof console.log === "object") && Function.prototype.call) {
+        Log4js.logger = function() {
+          Function.prototype.call.call(console.log, console, Array.prototype.slice.call(arguments));
+        };
+      }
+    }
+  },
+  _log: function() {
+    if (!Log4js.logger) {
+      Log4js._initLogger();
+    }
+
+    if (Log4js.logger) {
+      try {
+        Log4js.logger.apply(window.console, arguments);
+      } catch (e) {
+        Log4js._initLogger();
+        if (Log4js.logger) {
+          Log4js.logger.apply(window.console, arguments);
+        }
+      }
+    }
+
+    if (logElement) {
+      var str = '';
+      for (var i = 0; i < arguments.length; i++) {
+        str += arguments[i] + " ";
+      }
+      logElement.innerHTML += str + '\n';
+
+      var lines = logElement.innerHTML.split('\n');
+      if (lines.length > 100) {
+        logElement.innerHTML = lines.slice(-100).join('\n');
+      }
+    }
+  }
+};
+
+var Ajax = {
+  _getXHRObject: function(crossDomain) {
+    var xhr = false;
+    if (crossDomain) {
+      try {
+        xhr = new window.XDomainRequest();
+      } catch (e) {}
+      if (xhr) {
+        return xhr;
+      }
+    }
+
+    try {
+      xhr = new window.XMLHttpRequest();
+    } catch (e1) {
+      try {
+        xhr = new window.ActiveXObject("Msxml2.XMLHTTP");
+      } catch (e2) {
+        try {
+          xhr = new window.ActiveXObject("Microsoft.XMLHTTP");
+        } catch (e3) {
+          xhr = false;
+        }
+      }
+    }
+    return xhr;
+  },
+
+  _send: function(settings, post) {
+    settings = settings || {};
+    settings.timeout = settings.timeout || 30000;
+    var xhr = Ajax._getXHRObject(settings.crossDomain);
+    if (!xhr || !settings.url) {
+      return;
+    }
+
+    Ajax.clear(settings);
+
+    settings.xhr = xhr;
+
+    if (window.XDomainRequest && (xhr instanceof window.XDomainRequest)) {
+      xhr.onload = function() {
+        if (settings.afterReceive) {
+          settings.afterReceive(xhr);
+        }
+        if (settings.success) {
+          settings.success(xhr.responseText);
+        }
+      };
+
+      xhr.onerror = xhr.ontimeout = function() {
+        if (settings.afterReceive) {
+          settings.afterReceive(xhr);
+        }
+        if (settings.error) {
+          settings.error(xhr.status);
+        }
+      };
+    } else {
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+          Ajax.clear(settings);
+          if (settings.afterReceive) {
+            settings.afterReceive(xhr);
+          }
+          if (xhr.status === 200) {
+            if (settings.success) {
+              settings.success(xhr.responseText);
+            }
+          } else {
+            if (settings.error) {
+              settings.error(xhr.status);
+            }
+          }
+        }
+      };
+    }
+
+    if (settings.beforeOpen) {
+      settings.beforeOpen(xhr);
+    }
+
+    var params = {};
+    var body = null;
+    var method = "GET";
+    if (post) {
+      body = objectToUrlParams(settings.data);
+      method = "POST";
+    } else {
+      params = settings.data || {};
+    }
+
+    xhr.open(method, addParamsToUrl(settings.url, extend({}, params, currentTimestampParam())), true);
+
+    if (settings.beforeSend) {
+      settings.beforeSend(xhr);
+    }
+
+    var onerror = function() {
+      Ajax.clear(settings);
+      try {
+        xhr.abort();
+      } catch (e) { /* ignore error on closing */ }
+      settings.error(304);
+    };
+
+    if (post) {
+      if (xhr.setRequestHeader) {
+        xhr.setRequestHeader("Accept", "application/json");
+        xhr.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+      }
+    } else {
+      settings.timeoutId = window.setTimeout(onerror, settings.timeout + 2000);
+    }
+
+    xhr.send(body);
+    return xhr;
+  },
+
+  _clear_xhr: function(xhr) {
+    if (xhr) {
+      xhr.onreadystatechange = null;
+    }
+  },
+
+  _clear_script: function(script) {
+    // Handling memory leak in IE, removing and dereference the script
+    if (script) {
+      script.onerror = script.onload = script.onreadystatechange = null;
+      if (script.parentNode) {
+        script.parentNode.removeChild(script);
+      }
+    }
+  },
+
+  _clear_timeout: function(settings) {
+    settings.timeoutId = clearTimer(settings.timeoutId);
+  },
+
+  _clear_jsonp: function(settings) {
+    var callbackFunctionName = settings.data.callback;
+    if (callbackFunctionName) {
+      window[callbackFunctionName] = function() {
+        window[callbackFunctionName] = null;
+      };
+    }
+  },
+
+  clear: function(settings) {
+    Ajax._clear_timeout(settings);
+    Ajax._clear_jsonp(settings);
+    Ajax._clear_script(document.getElementById(settings.scriptId));
+    Ajax._clear_xhr(settings.xhr);
+  },
+
+  jsonp: function(settings) {
+    settings.timeout = settings.timeout || 30000;
+    Ajax.clear(settings);
+
+    var head = document.head || document.getElementsByTagName("head")[0];
+    var script = document.createElement("script");
+    var startTime = getTime();
+
+    var onerror = function() {
+      Ajax.clear(settings);
+      var endTime = getTime();
+      settings.error(((endTime - startTime) > settings.timeout / 2) ? 304 : 403);
+    };
+
+    var onload = function() {
+      Ajax.clear(settings);
+      settings.load();
+    };
+
+    var onsuccess = function() {
+      settings.afterSuccess = true;
+      settings.success.apply(null, arguments);
+    };
+
+    script.onerror = onerror;
+    script.onload = script.onreadystatechange = function(eventLoad) {
+      if (!script.readyState || /loaded|complete/.test(script.readyState)) {
+        if (settings.afterSuccess) {
+          onload();
+        } else {
+          onerror();
+        }
+      }
+    };
+
+    if (settings.beforeOpen) {
+      settings.beforeOpen({});
+    }
+    if (settings.beforeSend) {
+      settings.beforeSend({});
+    }
+
+    settings.timeoutId = window.setTimeout(onerror, settings.timeout + 2000);
+    settings.scriptId = settings.scriptId || getTime();
+    settings.afterSuccess = null;
+
+    settings.data.callback = settings.scriptId + "_onmessage_" + getTime();
+    window[settings.data.callback] = onsuccess;
+
+    script.setAttribute("src", addParamsToUrl(settings.url, extend({}, settings.data, currentTimestampParam())));
+    script.setAttribute("async", "async");
+    script.setAttribute("id", settings.scriptId);
+
+    // Use insertBefore instead of appendChild to circumvent an IE6 bug.
+    head.insertBefore(script, head.firstChild);
+    return settings;
+  },
+
+  load: function(settings) {
+    return Ajax._send(settings, false);
+  },
+
+  post: function(settings) {
+    return Ajax._send(settings, true);
+  }
+};
+
+var escapeText = function(text) {
+  return (text) ? window.escape(text) : '';
+};
+
+var unescapeText = function(text) {
+  return (text) ? window.unescape(text) : '';
+};
+
+Utils.parseMessage = function(messageText, keys) {
+  var msg = messageText;
+  if (isString(messageText)) {
+    msg = Utils.parseJSON(messageText);
+  }
+
+  var message = {
+    id: msg[keys.jsonIdKey],
+    channel: msg[keys.jsonChannelKey],
+    text: isString(msg[keys.jsonTextKey]) ? unescapeText(msg[keys.jsonTextKey]) : msg[keys.jsonTextKey],
+    tag: msg[keys.jsonTagKey],
+    time: msg[keys.jsonTimeKey],
+    eventid: msg[keys.jsonEventIdKey] || ""
+  };
+
+  return message;
+};
+
+var getBacktrack = function(options) {
+  return (options.backtrack) ? ".b" + Number(options.backtrack) : "";
+};
+
+var getChannelsPath = function(channels, withBacktrack) {
+  var path = '';
+  for (var channelName in channels) {
+    if (!channels.hasOwnProperty || channels.hasOwnProperty(channelName)) {
+      path += "/" + channelName + (withBacktrack ? getBacktrack(channels[channelName]) : "");
+    }
+  }
+  return path;
+};
+
+var getSubscriberUrl = function(pushstream, prefix, extraParams, withBacktrack) {
+  var websocket = pushstream.wrapper.type === WebSocketWrapper.TYPE;
+  var useSSL = pushstream.useSSL;
+  var port = normalizePort(useSSL, pushstream.port);
+  var url = (websocket) ? ((useSSL) ? "wss://" : "ws://") : ((useSSL) ? "https://" : "http://");
+  url += pushstream.host;
+  url += (port ? (":" + port) : "");
+  url += prefix;
+
+  var channels = getChannelsPath(pushstream.channels, withBacktrack);
+  if (pushstream.channelsByArgument) {
+    var channelParam = {};
+    channelParam[pushstream.channelsArgument] = channels.substring(1);
+    extraParams = extend({}, extraParams, channelParam);
+  } else {
+    url += channels;
+  }
+  return addParamsToUrl(url, extraParams);
+};
+
+var getPublisherUrl = function(pushstream) {
+  var port = normalizePort(pushstream.useSSL, pushstream.port);
+  var url = (pushstream.useSSL) ? "https://" : "http://";
+  url += pushstream.host;
+  url += (port ? (":" + port) : "");
+  url += pushstream.urlPrefixPublisher;
+  url += "?id=" + getChannelsPath(pushstream.channels, false);
+
+  return url;
+};
+
+Utils.extract_xss_domain = function(domain) {
+  // if domain is an ip address return it, else return ate least the last two parts of it
+  if (domain.match(/^(\d{1,3}\.){3}\d{1,3}$/)) {
+    return domain;
+  }
+
+  var domainParts = domain.split('.');
+  // if the domain ends with 3 chars or 2 chars preceded by more than 4 chars,
+  // we can keep only 2 parts, else we have to keep at least 3 (or all domain name)
+  var keepNumber = Math.max(domainParts.length - 1, (domain.match(/(\w{4,}\.\w{2}|\.\w{3,})$/) ? 2 : 3));
+
+  return domainParts.slice(-1 * keepNumber).join('.');
+};
+
+var normalizePort = function(useSSL, port) {
+  port = Number(port || (useSSL ? 443 : 80));
+  return ((!useSSL && port === 80) || (useSSL && port === 443)) ? "" : port;
+};
+
+Utils.isCrossDomainUrl = function(url) {
+  if (!url) {
+    return false;
+  }
+
+  var parsed = urlParser(url);
+
+  var srcPort = normalizePort(window.location.protocol === "https:", window.location.port);
+  var dstPort = normalizePort(parsed.protocol === "https:", parsed.port);
+
+  return (window.location.protocol !== parsed.protocol) ||
+    (window.location.hostname !== parsed.hostname) ||
+    (srcPort !== dstPort);
+};
+
+var linker = function(method, instance) {
+  return function() {
+    return method.apply(instance, arguments);
+  };
+};
+
+var clearTimer = function(timer) {
+  if (timer) {
+    window.clearTimeout(timer);
+  }
+  return null;
+};
+
+/* common callbacks */
+var onmessageCallback = function(event) {
+  this.pushstream._onmessage(event.data);
+};
+
+var onopenCallback = function() {
+  this.pushstream._onopen();
+  Log4js.info("[" + this.type + "] connection opened");
+};
+
+var onerrorCallback = function(event) {
+  Log4js.info("[" + this.type + "] error (disconnected by server):", event);
+  if ((this.pushstream.readyState === PushStream.OPEN) &&
+    (this.type === EventSourceWrapper.TYPE) &&
+    (event.type === 'error') &&
+    (this.connection.readyState === window.EventSource.CONNECTING)) {
+    // EventSource already has a reconnection function using the last-event-id header
+    return;
+  }
+  this._closeCurrentConnection();
+  this.pushstream._onerror({
+    type: ((event && ((event.type === "load") || (event.type === "close"))) || (this.pushstream.readyState === PushStream.CONNECTING)) ? "load" : "timeout"
+  });
+};
+
+/* wrappers */
+
+var WebSocketWrapper = function(pushstream) {
+  if (!window.WebSocket && !window.MozWebSocket) {
+    throw "WebSocket not supported";
+  }
+  this.type = WebSocketWrapper.TYPE;
+  this.pushstream = pushstream;
+  this.connection = null;
+};
+
+WebSocketWrapper.TYPE = "WebSocket";
+
+WebSocketWrapper.prototype = {
+  connect: function() {
+    this._closeCurrentConnection();
+    var params = extend({}, this.pushstream.extraParams(), currentTimestampParam(), getControlParams(this.pushstream));
+    var url = getSubscriberUrl(this.pushstream, this.pushstream.urlPrefixWebsocket, params, !this.pushstream._useControlArguments());
+    this.connection = (window.WebSocket) ? new window.WebSocket(url) : new window.MozWebSocket(url);
+    this.connection.onerror = linker(onerrorCallback, this);
+    this.connection.onclose = linker(onerrorCallback, this);
+    this.connection.onopen = linker(onopenCallback, this);
+    this.connection.onmessage = linker(onmessageCallback, this);
+    Log4js.info("[WebSocket] connecting to:", url);
+  },
+
+  disconnect: function() {
+    if (this.connection) {
+      Log4js.debug("[WebSocket] closing connection to:", this.connection.url);
+      this.connection.onclose = null;
+      this._closeCurrentConnection();
+      this.pushstream._onclose();
+    }
+  },
+
+  _closeCurrentConnection: function() {
+    if (this.connection) {
+      try {
+        this.connection.close();
+      } catch (e) { /* ignore error on closing */ }
+      this.connection = null;
+    }
+  },
+
+  sendMessage: function(message) {
+    if (this.connection) {
+      this.connection.send(message);
+    }
+  }
+};
+
+var EventSourceWrapper = function(pushstream) {
+  if (!window.EventSource) {
+    throw "EventSource not supported";
+  }
+  this.type = EventSourceWrapper.TYPE;
+  this.pushstream = pushstream;
+  this.connection = null;
+};
+
+EventSourceWrapper.TYPE = "EventSource";
+
+EventSourceWrapper.prototype = {
+  connect: function() {
+    this._closeCurrentConnection();
+    var params = extend({}, this.pushstream.extraParams(), currentTimestampParam(), getControlParams(this.pushstream));
+    var url = getSubscriberUrl(this.pushstream, this.pushstream.urlPrefixEventsource, params, !this.pushstream._useControlArguments());
+    this.connection = new window.EventSource(url);
+    this.connection.onerror = linker(onerrorCallback, this);
+    this.connection.onopen = linker(onopenCallback, this);
+    this.connection.onmessage = linker(onmessageCallback, this);
+    Log4js.info("[EventSource] connecting to:", url);
+  },
+
+  disconnect: function() {
+    if (this.connection) {
+      Log4js.debug("[EventSource] closing connection to:", this.connection.url);
+      this.connection.onclose = null;
+      this._closeCurrentConnection();
+      this.pushstream._onclose();
+    }
+  },
+
+  _closeCurrentConnection: function() {
+    if (this.connection) {
+      try {
+        this.connection.close();
+      } catch (e) { /* ignore error on closing */ }
+      this.connection = null;
+    }
+  }
+};
+
+var StreamWrapper = function(pushstream) {
+  this.type = StreamWrapper.TYPE;
+  this.pushstream = pushstream;
+  this.connection = null;
+  this.url = null;
+  this.frameloadtimer = null;
+  this.pingtimer = null;
+  this.iframeId = "PushStreamManager_" + pushstream.id;
+};
+
+StreamWrapper.TYPE = "Stream";
+
+StreamWrapper.prototype = {
+  connect: function() {
+    this._closeCurrentConnection();
+    var domain = Utils.extract_xss_domain(this.pushstream.host);
+    try {
+      document.domain = domain;
+    } catch (e) {
+      Log4js.error("[Stream] (warning) problem setting document.domain = " + domain + " (OBS: IE8 does not support set IP numbers as domain)");
+    }
+    var params = extend({}, this.pushstream.extraParams(), currentTimestampParam(), {
+      "streamid": this.pushstream.id
+    }, getControlParams(this.pushstream));
+    this.url = getSubscriberUrl(this.pushstream, this.pushstream.urlPrefixStream, params, !this.pushstream._useControlArguments());
+    Log4js.debug("[Stream] connecting to:", this.url);
+    this.loadFrame(this.url);
+  },
+
+  disconnect: function() {
+    if (this.connection) {
+      Log4js.debug("[Stream] closing connection to:", this.url);
+      this._closeCurrentConnection();
+      this.pushstream._onclose();
+    }
+  },
+
+  _clear_iframe: function() {
+    var oldIframe = document.getElementById(this.iframeId);
+    if (oldIframe) {
+      oldIframe.onload = null;
+      oldIframe.src = "about:blank";
+      if (oldIframe.parentNode) {
+        oldIframe.parentNode.removeChild(oldIframe);
+      }
+    }
+  },
+
+  _closeCurrentConnection: function() {
+    this._clear_iframe();
+    if (this.connection) {
+      this.pingtimer = clearTimer(this.pingtimer);
+      this.frameloadtimer = clearTimer(this.frameloadtimer);
+      this.connection = null;
+      this.transferDoc = null;
+      if (typeof window.CollectGarbage === 'function') {
+        window.CollectGarbage();
+      }
+    }
+  },
+
+  loadFrame: function(url) {
+    this._clear_iframe();
+
+    var ifr = null;
+    if ("ActiveXObject" in window) {
+      var transferDoc = new window.ActiveXObject("htmlfile");
+      transferDoc.open();
+      transferDoc.write("<html><script>document.domain='" + document.domain + "';</script><body><iframe id='" + this.iframeId + "' src='" + url + "'></iframe></body></html>");
+      transferDoc.parentWindow.PushStream = PushStream;
+      transferDoc.close();
+      ifr = transferDoc.getElementById(this.iframeId);
+      this.transferDoc = transferDoc;
+    } else {
+      ifr = document.createElement("IFRAME");
+      ifr.style.width = "1px";
+      ifr.style.height = "1px";
+      ifr.style.border = "none";
+      ifr.style.position = "absolute";
+      ifr.style.top = "-10px";
+      ifr.style.marginTop = "-10px";
+      ifr.style.zIndex = "-20";
+      ifr.PushStream = PushStream;
+      document.body.appendChild(ifr);
+      ifr.setAttribute("src", url);
+      ifr.setAttribute("id", this.iframeId);
+    }
+
+    ifr.onload = linker(onerrorCallback, this);
+    this.connection = ifr;
+    this.frameloadtimer = window.setTimeout(linker(onerrorCallback, this), this.pushstream.timeout);
+  },
+
+  register: function(iframeWindow) {
+    this.frameloadtimer = clearTimer(this.frameloadtimer);
+    iframeWindow.p = linker(this.process, this);
+    this.connection.onload = linker(this._onframeloaded, this);
+    this.pushstream._onopen();
+    this.setPingTimer();
+    Log4js.info("[Stream] frame registered");
+  },
+
+  process: function(id, channel, text, eventid, time, tag) {
+    this.pingtimer = clearTimer(this.pingtimer);
+    Log4js.info("[Stream] message received", arguments);
+    if (id !== -1) {
+      if (tag) {
+        this.pushstream._etag = tag;
+      }
+      if (time) {
+        this.pushstream._lastModified = time;
+      }
+      if (eventid) {
+        this.pushstream._lastEventId = eventid;
+      }
+    }
+    this.pushstream._onmessage(unescapeText(text), id, channel, eventid || "", true);
+    this.setPingTimer();
+  },
+
+  _onframeloaded: function() {
+    Log4js.info("[Stream] frame loaded (disconnected by server)");
+    this.connection.onload = null;
+    this.disconnect();
+  },
+
+  setPingTimer: function() {
+    if (this.pingtimer) {
+      clearTimer(this.pingtimer);
+    }
+    this.pingtimer = window.setTimeout(linker(onerrorCallback, this), this.pushstream.pingtimeout);
+  }
+};
+
+var LongPollingWrapper = function(pushstream) {
+  this.type = LongPollingWrapper.TYPE;
+  this.pushstream = pushstream;
+  this.connection = null;
+  this.opentimer = null;
+  this.messagesQueue = [];
+  this._linkedInternalListen = linker(this._internalListen, this);
+  this.xhrSettings = {
+    timeout: this.pushstream.timeout,
+    data: {},
+    url: null,
+    success: linker(this.onmessage, this),
+    error: linker(this.onerror, this),
+    load: linker(this.onload, this),
+    beforeSend: linker(this.beforeSend, this),
+    afterReceive: linker(this.afterReceive, this)
+  };
+};
+
+LongPollingWrapper.TYPE = "LongPolling";
+
+LongPollingWrapper.prototype = {
+  connect: function() {
+    this.messagesQueue = [];
+    this._closeCurrentConnection();
+    this.urlWithBacktrack = getSubscriberUrl(this.pushstream, this.pushstream.urlPrefixLongpolling, {}, true);
+    this.urlWithoutBacktrack = getSubscriberUrl(this.pushstream, this.pushstream.urlPrefixLongpolling, {}, false);
+    this.xhrSettings.url = this.urlWithBacktrack;
+    this.useJSONP = this.pushstream._crossDomain || this.pushstream.useJSONP;
+    this.xhrSettings.scriptId = "PushStreamManager_" + this.pushstream.id;
+    if (this.useJSONP) {
+      this.pushstream.messagesControlByArgument = true;
+    }
+    this._listen();
+    this.opentimer = window.setTimeout(linker(onopenCallback, this), 150);
+    Log4js.info("[LongPolling] connecting to:", this.xhrSettings.url);
+  },
+
+  _listen: function() {
+    if (this._internalListenTimeout) {
+      clearTimer(this._internalListenTimeout);
+    }
+    this._internalListenTimeout = window.setTimeout(this._linkedInternalListen, 100);
+  },
+
+  _internalListen: function() {
+    if (this.pushstream._keepConnected) {
+      this.xhrSettings.url = this.pushstream._useControlArguments() ? this.urlWithoutBacktrack : this.urlWithBacktrack;
+      this.xhrSettings.data = extend({}, this.pushstream.extraParams(), this.xhrSettings.data, getControlParams(this.pushstream));
+      if (this.useJSONP) {
+        this.connection = Ajax.jsonp(this.xhrSettings);
+      } else if (!this.connection) {
+        this.connection = Ajax.load(this.xhrSettings);
+      }
+    }
+  },
+
+  disconnect: function() {
+    if (this.connection) {
+      Log4js.debug("[LongPolling] closing connection to:", this.xhrSettings.url);
+      this._closeCurrentConnection();
+      this.pushstream._onclose();
+    }
+  },
+
+  _closeCurrentConnection: function() {
+    this.opentimer = clearTimer(this.opentimer);
+    if (this.connection) {
+      try {
+        this.connection.abort();
+      } catch (e) {
+        try {
+          Ajax.clear(this.connection);
+        } catch (e1) { /* ignore error on closing */ }
+      }
+      this.connection = null;
+      this.xhrSettings.url = null;
+    }
+  },
+
+  beforeSend: function(xhr) {
+    if (!this.pushstream.messagesControlByArgument) {
+      xhr.setRequestHeader("If-None-Match", this.pushstream._etag);
+      xhr.setRequestHeader("If-Modified-Since", this.pushstream._lastModified);
+    }
+  },
+
+  afterReceive: function(xhr) {
+    if (!this.pushstream.messagesControlByArgument) {
+      this.pushstream._etag = xhr.getResponseHeader('Etag');
+      this.pushstream._lastModified = xhr.getResponseHeader('Last-Modified');
+    }
+    this.connection = null;
+  },
+
+  onerror: function(status) {
+    this._closeCurrentConnection();
+    if (this.pushstream._keepConnected) { /* abort(), called by disconnect(), call this callback, but should be ignored */
+      if (status === 304) {
+        this._listen();
+      } else {
+        Log4js.info("[LongPolling] error (disconnected by server):", status);
+        this.pushstream._onerror({
+          type: ((status === 403) || (this.pushstream.readyState === PushStream.CONNECTING)) ? "load" : "timeout"
+        });
+      }
+    }
+  },
+
+  onload: function() {
+    this._listen();
+  },
+
+  onmessage: function(responseText) {
+    if (this._internalListenTimeout) {
+      clearTimer(this._internalListenTimeout);
+    }
+    Log4js.info("[LongPolling] message received", responseText);
+    var lastMessage = null;
+    var messages = isArray(responseText) ? responseText : responseText.replace(/\}\{/g, "}\r\n{").split("\r\n");
+    for (var i = 0; i < messages.length; i++) {
+      if (messages[i]) {
+        lastMessage = messages[i];
+        this.messagesQueue.push(lastMessage);
+        if (this.pushstream.messagesControlByArgument && lastMessage.time) {
+          this.pushstream._etag = lastMessage.tag;
+          this.pushstream._lastModified = lastMessage.time;
+        }
+      }
+    }
+
+    this._listen();
+
+    while (this.messagesQueue.length > 0) {
+      var message = this.messagesQueue.shift();
+      this.pushstream._onmessage(message);
+    }
+  }
+};
+
+/* mains class */
+
+var PushStreamManager = [];
+
+var PushStream = function(settings) {
+  settings = settings || {};
+
+  this.id = PushStreamManager.push(this) - 1;
+
+  this.useSSL = settings.useSSL || false;
+  this.host = settings.host || window.location.hostname;
+  this.port = Number(settings.port || (this.useSSL ? 443 : 80));
+
+  this.timeout = settings.timeout || 30000;
+  this.pingtimeout = settings.pingtimeout || 30000;
+  this.reconnectOnTimeoutInterval = settings.reconnectOnTimeoutInterval || 3000;
+  this.reconnectOnChannelUnavailableInterval = settings.reconnectOnChannelUnavailableInterval || 60000;
+
+  this.lastEventId = settings.lastEventId || null;
+  this.messagesPublishedAfter = settings.messagesPublishedAfter;
+  this.messagesControlByArgument = settings.messagesControlByArgument || false;
+  this.tagArgument = settings.tagArgument || 'tag';
+  this.timeArgument = settings.timeArgument || 'time';
+  this.eventIdArgument = settings.eventIdArgument || 'eventid';
+  this.useJSONP = settings.useJSONP || false;
+
+  this._reconnecttimer = null;
+  this._etag = 0;
+  this._lastModified = null;
+  this._lastEventId = null;
+
+  this.urlPrefixPublisher = settings.urlPrefixPublisher || '/pub';
+  this.urlPrefixStream = settings.urlPrefixStream || '/sub';
+  this.urlPrefixEventsource = settings.urlPrefixEventsource || '/ev';
+  this.urlPrefixLongpolling = settings.urlPrefixLongpolling || '/lp';
+  this.urlPrefixWebsocket = settings.urlPrefixWebsocket || '/ws';
+
+  this.jsonIdKey = settings.jsonIdKey || 'id';
+  this.jsonChannelKey = settings.jsonChannelKey || 'channel';
+  this.jsonTextKey = settings.jsonTextKey || 'text';
+  this.jsonTagKey = settings.jsonTagKey || 'tag';
+  this.jsonTimeKey = settings.jsonTimeKey || 'time';
+  this.jsonEventIdKey = settings.jsonEventIdKey || 'eventid';
+
+  this.modes = (settings.modes || 'eventsource|websocket|stream|longpolling').split('|');
+  this.wrappers = [];
+  this.wrapper = null;
+
+  this.onchanneldeleted = settings.onchanneldeleted || null;
+  this.onmessage = settings.onmessage || null;
+  this.onerror = settings.onerror || null;
+  this.onstatuschange = settings.onstatuschange || null;
+  this.extraParams = settings.extraParams || function() {
+    return {};
+  };
+
+  this.channels = {};
+  this.channelsCount = 0;
+  this.channelsByArgument = settings.channelsByArgument || false;
+  this.channelsArgument = settings.channelsArgument || 'channels';
+
+  this._crossDomain = Utils.isCrossDomainUrl(getPublisherUrl(this));
+
+  for (var i = 0; i < this.modes.length; i++) {
+    try {
+      var wrapper = null;
+      switch (this.modes[i]) {
+        case "websocket":
+          wrapper = new WebSocketWrapper(this);
+          break;
+        case "eventsource":
+          wrapper = new EventSourceWrapper(this);
+          break;
+        case "longpolling":
+          wrapper = new LongPollingWrapper(this);
+          break;
+        case "stream":
+          wrapper = new StreamWrapper(this);
+          break;
+      }
+      this.wrappers[this.wrappers.length] = wrapper;
+    } catch (e) {
+      Log4js.info(e);
+    }
+  }
+
+  this.readyState = 0;
+};
+
+/* constants */
+PushStream.LOG_LEVEL = 'error'; /* debug, info, error */
+PushStream.LOG_OUTPUT_ELEMENT_ID = 'Log4jsLogOutput';
+
+/* status codes */
+PushStream.CLOSED = 0;
+PushStream.CONNECTING = 1;
+PushStream.OPEN = 2;
+
+/* main code */
+PushStream.prototype = {
+  addChannel: function(channel, options) {
+    if (escapeText(channel) !== channel) {
+      throw "Invalid channel name! Channel has to be a set of [a-zA-Z0-9]";
+    }
+    Log4js.debug("entering addChannel");
+    if (typeof(this.channels[channel]) !== "undefined") {
+      throw "Cannot add channel " + channel + ": already subscribed";
+    }
+    options = options || {};
+    Log4js.info("adding channel", channel, options);
+    this.channels[channel] = options;
+    this.channelsCount++;
+    if (this.readyState !== PushStream.CLOSED) {
+      this.connect();
+    }
+    Log4js.debug("leaving addChannel");
+  },
+
+  removeChannel: function(channel) {
+    if (this.channels[channel]) {
+      Log4js.info("removing channel", channel);
+      delete this.channels[channel];
+      this.channelsCount--;
+    }
+  },
+
+  removeAllChannels: function() {
+    Log4js.info("removing all channels");
+    this.channels = {};
+    this.channelsCount = 0;
+  },
+
+  _setState: function(state) {
+    if (this.readyState !== state) {
+      Log4js.info("status changed", state);
+      this.readyState = state;
+      if (this.onstatuschange) {
+        this.onstatuschange(this.readyState);
+      }
+    }
+  },
+
+  connect: function() {
+    Log4js.debug("entering connect");
+    if (!this.host) {
+      throw "PushStream host not specified";
+    }
+    if (isNaN(this.port)) {
+      throw "PushStream port not specified";
+    }
+    if (!this.channelsCount) {
+      throw "No channels specified";
+    }
+    if (this.wrappers.length === 0) {
+      throw "No available support for this browser";
+    }
+
+    this._keepConnected = true;
+    this._lastUsedMode = 0;
+    this._connect();
+
+    Log4js.debug("leaving connect");
+  },
+
+  disconnect: function() {
+    Log4js.debug("entering disconnect");
+    this._keepConnected = false;
+    this._disconnect();
+    this._setState(PushStream.CLOSED);
+    Log4js.info("disconnected");
+    Log4js.debug("leaving disconnect");
+  },
+
+  _useControlArguments: function() {
+    return this.messagesControlByArgument && ((this._lastModified !== null) || (this._lastEventId !== null));
+  },
+
+  _connect: function() {
+    if (this._lastEventId === null) {
+      this._lastEventId = this.lastEventId;
+    }
+    if (this._lastModified === null) {
+      var date = this.messagesPublishedAfter;
+      if (!isDate(date)) {
+        var messagesPublishedAfter = Number(this.messagesPublishedAfter);
+        if (messagesPublishedAfter > 0) {
+          date = new Date();
+          date.setTime(date.getTime() - (messagesPublishedAfter * 1000));
+        } else if (messagesPublishedAfter < 0) {
+          date = new Date(0);
+        }
+      }
+
+      if (isDate(date)) {
+        this._lastModified = Utils.dateToUTCString(date);
+      }
+    }
+
+    this._disconnect();
+    this._setState(PushStream.CONNECTING);
+    this.wrapper = this.wrappers[this._lastUsedMode++ % this.wrappers.length];
+
+    try {
+      this.wrapper.connect();
+    } catch (e) {
+      //each wrapper has a cleanup routine at disconnect method
+      if (this.wrapper) {
+        this.wrapper.disconnect();
+      }
+    }
+  },
+
+  _disconnect: function() {
+    this._reconnecttimer = clearTimer(this._reconnecttimer);
+    if (this.wrapper) {
+      this.wrapper.disconnect();
+    }
+  },
+
+  _onopen: function() {
+    this._reconnecttimer = clearTimer(this._reconnecttimer);
+    this._setState(PushStream.OPEN);
+    if (this._lastUsedMode > 0) {
+      this._lastUsedMode--; //use same mode on next connection
+    }
+  },
+
+  _onclose: function() {
+    this._reconnecttimer = clearTimer(this._reconnecttimer);
+    this._setState(PushStream.CLOSED);
+    this._reconnect(this.reconnectOnTimeoutInterval);
+  },
+
+  _onmessage: function(message) {
+    if (this.onmessage) {
+      this.onmessage(message);
+    }
+  },
+
+  _onerror: function(error) {
+    this._setState(PushStream.CLOSED);
+    this._reconnect((error.type === "timeout") ? this.reconnectOnTimeoutInterval : this.reconnectOnChannelUnavailableInterval);
+    if (this.onerror) {
+      this.onerror(error);
+    }
+  },
+
+  _reconnect: function(timeout) {
+    if (this._keepConnected && !this._reconnecttimer && (this.readyState !== PushStream.CONNECTING)) {
+      Log4js.info("trying to reconnect in", timeout);
+      this._reconnecttimer = window.setTimeout(linker(this._connect, this), timeout);
+    }
+  },
+
+  sendMessage: function(message, successCallback, errorCallback) {
+    message = escapeText(message);
+    if (this.wrapper.type === WebSocketWrapper.TYPE) {
+      this.wrapper.sendMessage(message);
+      if (successCallback) {
+        successCallback();
+      }
+    } else {
+      Ajax.post({
+        url: getPublisherUrl(this),
+        data: message,
+        success: successCallback,
+        error: errorCallback,
+        crossDomain: this._crossDomain
+      });
+    }
+  }
+};
+
+PushStream.sendMessage = function(url, message, successCallback, errorCallback) {
+  Ajax.post({
+    url: url,
+    data: escapeText(message),
+    success: successCallback,
+    error: errorCallback
+  });
+};
+
+// to make server header template more clear, it calls register and
+// by a url parameter we find the stream wrapper instance
+PushStream.register = function(iframe) {
+  var matcher = iframe.window.location.href.match(/streamid=([0-9]*)&?/);
+  if (matcher[1] && PushStreamManager[matcher[1]]) {
+    PushStreamManager[matcher[1]].wrapper.register(iframe);
+  }
+};
+
+PushStream.unload = function() {
+  for (var i = 0; i < PushStreamManager.length; i++) {
+    try {
+      PushStreamManager[i].disconnect();
+    } catch (e) {}
+  }
+};
+
+/* make class public */
+exports.PushStream = PushStream;
+exports.PushStreamManager = PushStreamManager;
+
+if (window.attachEvent) {
+  window.attachEvent("onunload", PushStream.unload);
+}
+if (window.addEventListener) {
+  window.addEventListener.call(window, "unload", PushStream.unload, false);
+}
+
+},{"url":64,"ws":58}],2:[function(require,module,exports){
 (function (process){
  /*!
   * https://github.com/paulmillr/es6-shim
@@ -2869,7 +4143,7 @@
 }));
 
 }).call(this,require('_process'))
-},{"_process":57}],2:[function(require,module,exports){
+},{"_process":59}],3:[function(require,module,exports){
 (function (global){
 /**
  * @license
@@ -15075,7 +16349,7 @@
 }.call(this));
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],3:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 (function (process){
 // Generated by CoffeeScript 1.7.1
 (function() {
@@ -15111,11 +16385,11 @@
 }).call(this);
 
 }).call(this,require('_process'))
-},{"_process":57}],4:[function(require,module,exports){
+},{"_process":59}],5:[function(require,module,exports){
 
 module.exports = require('./lib/');
 
-},{"./lib/":5}],5:[function(require,module,exports){
+},{"./lib/":6}],6:[function(require,module,exports){
 
 /**
  * Module dependencies.
@@ -15204,7 +16478,7 @@ exports.connect = lookup;
 exports.Manager = require('./manager');
 exports.Socket = require('./socket');
 
-},{"./manager":6,"./socket":8,"./url":9,"debug":13,"socket.io-parser":49}],6:[function(require,module,exports){
+},{"./manager":7,"./socket":9,"./url":10,"debug":14,"socket.io-parser":50}],7:[function(require,module,exports){
 
 /**
  * Module dependencies.
@@ -15709,7 +16983,7 @@ Manager.prototype.onreconnect = function(){
   this.emitAll('reconnect', attempt);
 };
 
-},{"./on":7,"./socket":8,"./url":9,"backo2":10,"component-bind":11,"component-emitter":12,"debug":13,"engine.io-client":14,"indexof":45,"object-component":46,"socket.io-parser":49}],7:[function(require,module,exports){
+},{"./on":8,"./socket":9,"./url":10,"backo2":11,"component-bind":12,"component-emitter":13,"debug":14,"engine.io-client":15,"indexof":46,"object-component":47,"socket.io-parser":50}],8:[function(require,module,exports){
 
 /**
  * Module exports.
@@ -15735,7 +17009,7 @@ function on(obj, ev, fn) {
   };
 }
 
-},{}],8:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 
 /**
  * Module dependencies.
@@ -16122,7 +17396,7 @@ Socket.prototype.disconnect = function(){
   return this;
 };
 
-},{"./on":7,"component-bind":11,"component-emitter":12,"debug":13,"has-binary":43,"socket.io-parser":49,"to-array":53}],9:[function(require,module,exports){
+},{"./on":8,"component-bind":12,"component-emitter":13,"debug":14,"has-binary":44,"socket.io-parser":50,"to-array":54}],10:[function(require,module,exports){
 (function (global){
 
 /**
@@ -16199,7 +17473,7 @@ function url(uri, loc){
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"debug":13,"parseuri":47}],10:[function(require,module,exports){
+},{"debug":14,"parseuri":48}],11:[function(require,module,exports){
 
 /**
  * Expose `Backoff`.
@@ -16286,7 +17560,7 @@ Backoff.prototype.setJitter = function(jitter){
 };
 
 
-},{}],11:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 /**
  * Slice reference.
  */
@@ -16311,7 +17585,7 @@ module.exports = function(obj, fn){
   }
 };
 
-},{}],12:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 
 /**
  * Expose `Emitter`.
@@ -16477,7 +17751,7 @@ Emitter.prototype.hasListeners = function(event){
   return !! this.listeners(event).length;
 };
 
-},{}],13:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 
 /**
  * Expose `debug()` as the module.
@@ -16616,11 +17890,11 @@ try {
   if (window.localStorage) debug.enable(localStorage.debug);
 } catch(e){}
 
-},{}],14:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 
 module.exports =  require('./lib/');
 
-},{"./lib/":15}],15:[function(require,module,exports){
+},{"./lib/":16}],16:[function(require,module,exports){
 
 module.exports = require('./socket');
 
@@ -16632,7 +17906,7 @@ module.exports = require('./socket');
  */
 module.exports.parser = require('engine.io-parser');
 
-},{"./socket":16,"engine.io-parser":28}],16:[function(require,module,exports){
+},{"./socket":17,"engine.io-parser":29}],17:[function(require,module,exports){
 (function (global){
 /**
  * Module dependencies.
@@ -17341,7 +18615,7 @@ Socket.prototype.filterUpgrades = function (upgrades) {
 };
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./transport":17,"./transports":18,"component-emitter":12,"debug":25,"engine.io-parser":28,"indexof":45,"parsejson":39,"parseqs":40,"parseuri":41}],17:[function(require,module,exports){
+},{"./transport":18,"./transports":19,"component-emitter":13,"debug":26,"engine.io-parser":29,"indexof":46,"parsejson":40,"parseqs":41,"parseuri":42}],18:[function(require,module,exports){
 /**
  * Module dependencies.
  */
@@ -17502,7 +18776,7 @@ Transport.prototype.onClose = function () {
   this.emit('close');
 };
 
-},{"component-emitter":12,"engine.io-parser":28}],18:[function(require,module,exports){
+},{"component-emitter":13,"engine.io-parser":29}],19:[function(require,module,exports){
 (function (global){
 /**
  * Module dependencies
@@ -17559,7 +18833,7 @@ function polling(opts){
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./polling-jsonp":19,"./polling-xhr":20,"./websocket":22,"xmlhttprequest":23}],19:[function(require,module,exports){
+},{"./polling-jsonp":20,"./polling-xhr":21,"./websocket":23,"xmlhttprequest":24}],20:[function(require,module,exports){
 (function (global){
 
 /**
@@ -17796,7 +19070,7 @@ JSONPPolling.prototype.doWrite = function (data, fn) {
 };
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./polling":21,"component-inherit":24}],20:[function(require,module,exports){
+},{"./polling":22,"component-inherit":25}],21:[function(require,module,exports){
 (function (global){
 /**
  * Module requirements.
@@ -18184,7 +19458,7 @@ function unloadHandler() {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./polling":21,"component-emitter":12,"component-inherit":24,"debug":25,"xmlhttprequest":23}],21:[function(require,module,exports){
+},{"./polling":22,"component-emitter":13,"component-inherit":25,"debug":26,"xmlhttprequest":24}],22:[function(require,module,exports){
 /**
  * Module dependencies.
  */
@@ -18431,7 +19705,7 @@ Polling.prototype.uri = function(){
   return schema + '://' + this.hostname + port + this.path + query;
 };
 
-},{"../transport":17,"component-inherit":24,"debug":25,"engine.io-parser":28,"parseqs":40,"xmlhttprequest":23}],22:[function(require,module,exports){
+},{"../transport":18,"component-inherit":25,"debug":26,"engine.io-parser":29,"parseqs":41,"xmlhttprequest":24}],23:[function(require,module,exports){
 /**
  * Module dependencies.
  */
@@ -18671,7 +19945,7 @@ WS.prototype.check = function(){
   return !!WebSocket && !('__initialize' in WebSocket && this.name === WS.prototype.name);
 };
 
-},{"../transport":17,"component-inherit":24,"debug":25,"engine.io-parser":28,"parseqs":40,"ws":42}],23:[function(require,module,exports){
+},{"../transport":18,"component-inherit":25,"debug":26,"engine.io-parser":29,"parseqs":41,"ws":43}],24:[function(require,module,exports){
 // browser shim for xmlhttprequest module
 var hasCORS = require('has-cors');
 
@@ -18709,7 +19983,7 @@ module.exports = function(opts) {
   }
 }
 
-},{"has-cors":37}],24:[function(require,module,exports){
+},{"has-cors":38}],25:[function(require,module,exports){
 
 module.exports = function(a, b){
   var fn = function(){};
@@ -18717,7 +19991,7 @@ module.exports = function(a, b){
   a.prototype = new fn;
   a.prototype.constructor = a;
 };
-},{}],25:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 
 /**
  * This is the web browser implementation of `debug()`.
@@ -18866,7 +20140,7 @@ function load() {
 
 exports.enable(load());
 
-},{"./debug":26}],26:[function(require,module,exports){
+},{"./debug":27}],27:[function(require,module,exports){
 
 /**
  * This is the common logic for both the Node.js and web browser
@@ -19065,7 +20339,7 @@ function coerce(val) {
   return val;
 }
 
-},{"ms":27}],27:[function(require,module,exports){
+},{"ms":28}],28:[function(require,module,exports){
 /**
  * Helpers.
  */
@@ -19178,7 +20452,7 @@ function plural(ms, n, name) {
   return Math.ceil(ms / n) + ' ' + name + 's';
 }
 
-},{}],28:[function(require,module,exports){
+},{}],29:[function(require,module,exports){
 (function (global){
 /**
  * Module dependencies.
@@ -19776,7 +21050,7 @@ exports.decodePayloadAsBinary = function (data, binaryType, callback) {
 };
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./keys":29,"after":30,"arraybuffer.slice":31,"base64-arraybuffer":32,"blob":33,"has-binary":34,"utf8":36}],29:[function(require,module,exports){
+},{"./keys":30,"after":31,"arraybuffer.slice":32,"base64-arraybuffer":33,"blob":34,"has-binary":35,"utf8":37}],30:[function(require,module,exports){
 
 /**
  * Gets the keys for an object.
@@ -19797,7 +21071,7 @@ module.exports = Object.keys || function keys (obj){
   return arr;
 };
 
-},{}],30:[function(require,module,exports){
+},{}],31:[function(require,module,exports){
 module.exports = after
 
 function after(count, callback, err_cb) {
@@ -19827,7 +21101,7 @@ function after(count, callback, err_cb) {
 
 function noop() {}
 
-},{}],31:[function(require,module,exports){
+},{}],32:[function(require,module,exports){
 /**
  * An abstraction for slicing an arraybuffer even when
  * ArrayBuffer.prototype.slice is not supported
@@ -19858,7 +21132,7 @@ module.exports = function(arraybuffer, start, end) {
   return result.buffer;
 };
 
-},{}],32:[function(require,module,exports){
+},{}],33:[function(require,module,exports){
 /*
  * base64-arraybuffer
  * https://github.com/niklasvh/base64-arraybuffer
@@ -19919,7 +21193,7 @@ module.exports = function(arraybuffer, start, end) {
   };
 })("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/");
 
-},{}],33:[function(require,module,exports){
+},{}],34:[function(require,module,exports){
 (function (global){
 /**
  * Create a blob builder even when vendor prefixes exist
@@ -19972,7 +21246,7 @@ module.exports = (function() {
 })();
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],34:[function(require,module,exports){
+},{}],35:[function(require,module,exports){
 (function (global){
 
 /*
@@ -20034,12 +21308,12 @@ function hasBinary(data) {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"isarray":35}],35:[function(require,module,exports){
+},{"isarray":36}],36:[function(require,module,exports){
 module.exports = Array.isArray || function (arr) {
   return Object.prototype.toString.call(arr) == '[object Array]';
 };
 
-},{}],36:[function(require,module,exports){
+},{}],37:[function(require,module,exports){
 (function (global){
 /*! http://mths.be/utf8js v2.0.0 by @mathias */
 ;(function(root) {
@@ -20282,7 +21556,7 @@ module.exports = Array.isArray || function (arr) {
 }(this));
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],37:[function(require,module,exports){
+},{}],38:[function(require,module,exports){
 
 /**
  * Module dependencies.
@@ -20307,7 +21581,7 @@ try {
   module.exports = false;
 }
 
-},{"global":38}],38:[function(require,module,exports){
+},{"global":39}],39:[function(require,module,exports){
 
 /**
  * Returns `this`. Execute this without a "context" (i.e. without it being
@@ -20317,7 +21591,7 @@ try {
 
 module.exports = (function () { return this; })();
 
-},{}],39:[function(require,module,exports){
+},{}],40:[function(require,module,exports){
 (function (global){
 /**
  * JSON parse.
@@ -20352,7 +21626,7 @@ module.exports = function parsejson(data) {
   }
 };
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],40:[function(require,module,exports){
+},{}],41:[function(require,module,exports){
 /**
  * Compiles a querystring
  * Returns string representation of the object
@@ -20391,7 +21665,7 @@ exports.decode = function(qs){
   return qry;
 };
 
-},{}],41:[function(require,module,exports){
+},{}],42:[function(require,module,exports){
 /**
  * Parses an URI
  *
@@ -20432,7 +21706,7 @@ module.exports = function parseuri(str) {
     return uri;
 };
 
-},{}],42:[function(require,module,exports){
+},{}],43:[function(require,module,exports){
 
 /**
  * Module dependencies.
@@ -20477,7 +21751,7 @@ function ws(uri, protocols, opts) {
 
 if (WebSocket) ws.prototype = WebSocket.prototype;
 
-},{}],43:[function(require,module,exports){
+},{}],44:[function(require,module,exports){
 (function (global){
 
 /*
@@ -20539,9 +21813,9 @@ function hasBinary(data) {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"isarray":44}],44:[function(require,module,exports){
-arguments[4][35][0].apply(exports,arguments)
-},{"dup":35}],45:[function(require,module,exports){
+},{"isarray":45}],45:[function(require,module,exports){
+arguments[4][36][0].apply(exports,arguments)
+},{"dup":36}],46:[function(require,module,exports){
 
 var indexOf = [].indexOf;
 
@@ -20552,7 +21826,7 @@ module.exports = function(arr, obj){
   }
   return -1;
 };
-},{}],46:[function(require,module,exports){
+},{}],47:[function(require,module,exports){
 
 /**
  * HOP ref.
@@ -20637,7 +21911,7 @@ exports.length = function(obj){
 exports.isEmpty = function(obj){
   return 0 == exports.length(obj);
 };
-},{}],47:[function(require,module,exports){
+},{}],48:[function(require,module,exports){
 /**
  * Parses an URI
  *
@@ -20664,7 +21938,7 @@ module.exports = function parseuri(str) {
   return uri;
 };
 
-},{}],48:[function(require,module,exports){
+},{}],49:[function(require,module,exports){
 (function (global){
 /*global Blob,File*/
 
@@ -20809,7 +22083,7 @@ exports.removeBlobs = function(data, callback) {
 };
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./is-buffer":50,"isarray":51}],49:[function(require,module,exports){
+},{"./is-buffer":51,"isarray":52}],50:[function(require,module,exports){
 
 /**
  * Module dependencies.
@@ -21211,7 +22485,7 @@ function error(data){
   };
 }
 
-},{"./binary":48,"./is-buffer":50,"component-emitter":12,"debug":13,"isarray":51,"json3":52}],50:[function(require,module,exports){
+},{"./binary":49,"./is-buffer":51,"component-emitter":13,"debug":14,"isarray":52,"json3":53}],51:[function(require,module,exports){
 (function (global){
 
 module.exports = isBuf;
@@ -21228,9 +22502,9 @@ function isBuf(obj) {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],51:[function(require,module,exports){
-arguments[4][35][0].apply(exports,arguments)
-},{"dup":35}],52:[function(require,module,exports){
+},{}],52:[function(require,module,exports){
+arguments[4][36][0].apply(exports,arguments)
+},{"dup":36}],53:[function(require,module,exports){
 /*! JSON v3.2.6 | http://bestiejs.github.io/json3 | Copyright 2012-2013, Kit Cambridge | http://kit.mit-license.org */
 ;(function (window) {
   // Convenience aliases.
@@ -22093,7 +23367,7 @@ arguments[4][35][0].apply(exports,arguments)
   }
 }(this));
 
-},{}],53:[function(require,module,exports){
+},{}],54:[function(require,module,exports){
 module.exports = toArray
 
 function toArray(list, index) {
@@ -22108,7 +23382,7 @@ function toArray(list, index) {
     return array
 }
 
-},{}],54:[function(require,module,exports){
+},{}],55:[function(require,module,exports){
 /**
  * Module dependencies.
  */
@@ -23233,9 +24507,9 @@ request.put = function(url, data, fn){
 
 module.exports = request;
 
-},{"emitter":55,"reduce":56}],55:[function(require,module,exports){
-arguments[4][12][0].apply(exports,arguments)
-},{"dup":12}],56:[function(require,module,exports){
+},{"emitter":56,"reduce":57}],56:[function(require,module,exports){
+arguments[4][13][0].apply(exports,arguments)
+},{"dup":13}],57:[function(require,module,exports){
 
 /**
  * Reduce `arr` with `fn`.
@@ -23260,7 +24534,9 @@ module.exports = function(arr, fn, initial){
   
   return curr;
 };
-},{}],57:[function(require,module,exports){
+},{}],58:[function(require,module,exports){
+arguments[4][43][0].apply(exports,arguments)
+},{"dup":43}],59:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -23352,22 +24628,1447 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],58:[function(require,module,exports){
+},{}],60:[function(require,module,exports){
+(function (global){
+/*! https://mths.be/punycode v1.3.2 by @mathias */
+;(function(root) {
+
+	/** Detect free variables */
+	var freeExports = typeof exports == 'object' && exports &&
+		!exports.nodeType && exports;
+	var freeModule = typeof module == 'object' && module &&
+		!module.nodeType && module;
+	var freeGlobal = typeof global == 'object' && global;
+	if (
+		freeGlobal.global === freeGlobal ||
+		freeGlobal.window === freeGlobal ||
+		freeGlobal.self === freeGlobal
+	) {
+		root = freeGlobal;
+	}
+
+	/**
+	 * The `punycode` object.
+	 * @name punycode
+	 * @type Object
+	 */
+	var punycode,
+
+	/** Highest positive signed 32-bit float value */
+	maxInt = 2147483647, // aka. 0x7FFFFFFF or 2^31-1
+
+	/** Bootstring parameters */
+	base = 36,
+	tMin = 1,
+	tMax = 26,
+	skew = 38,
+	damp = 700,
+	initialBias = 72,
+	initialN = 128, // 0x80
+	delimiter = '-', // '\x2D'
+
+	/** Regular expressions */
+	regexPunycode = /^xn--/,
+	regexNonASCII = /[^\x20-\x7E]/, // unprintable ASCII chars + non-ASCII chars
+	regexSeparators = /[\x2E\u3002\uFF0E\uFF61]/g, // RFC 3490 separators
+
+	/** Error messages */
+	errors = {
+		'overflow': 'Overflow: input needs wider integers to process',
+		'not-basic': 'Illegal input >= 0x80 (not a basic code point)',
+		'invalid-input': 'Invalid input'
+	},
+
+	/** Convenience shortcuts */
+	baseMinusTMin = base - tMin,
+	floor = Math.floor,
+	stringFromCharCode = String.fromCharCode,
+
+	/** Temporary variable */
+	key;
+
+	/*--------------------------------------------------------------------------*/
+
+	/**
+	 * A generic error utility function.
+	 * @private
+	 * @param {String} type The error type.
+	 * @returns {Error} Throws a `RangeError` with the applicable error message.
+	 */
+	function error(type) {
+		throw RangeError(errors[type]);
+	}
+
+	/**
+	 * A generic `Array#map` utility function.
+	 * @private
+	 * @param {Array} array The array to iterate over.
+	 * @param {Function} callback The function that gets called for every array
+	 * item.
+	 * @returns {Array} A new array of values returned by the callback function.
+	 */
+	function map(array, fn) {
+		var length = array.length;
+		var result = [];
+		while (length--) {
+			result[length] = fn(array[length]);
+		}
+		return result;
+	}
+
+	/**
+	 * A simple `Array#map`-like wrapper to work with domain name strings or email
+	 * addresses.
+	 * @private
+	 * @param {String} domain The domain name or email address.
+	 * @param {Function} callback The function that gets called for every
+	 * character.
+	 * @returns {Array} A new string of characters returned by the callback
+	 * function.
+	 */
+	function mapDomain(string, fn) {
+		var parts = string.split('@');
+		var result = '';
+		if (parts.length > 1) {
+			// In email addresses, only the domain name should be punycoded. Leave
+			// the local part (i.e. everything up to `@`) intact.
+			result = parts[0] + '@';
+			string = parts[1];
+		}
+		// Avoid `split(regex)` for IE8 compatibility. See #17.
+		string = string.replace(regexSeparators, '\x2E');
+		var labels = string.split('.');
+		var encoded = map(labels, fn).join('.');
+		return result + encoded;
+	}
+
+	/**
+	 * Creates an array containing the numeric code points of each Unicode
+	 * character in the string. While JavaScript uses UCS-2 internally,
+	 * this function will convert a pair of surrogate halves (each of which
+	 * UCS-2 exposes as separate characters) into a single code point,
+	 * matching UTF-16.
+	 * @see `punycode.ucs2.encode`
+	 * @see <https://mathiasbynens.be/notes/javascript-encoding>
+	 * @memberOf punycode.ucs2
+	 * @name decode
+	 * @param {String} string The Unicode input string (UCS-2).
+	 * @returns {Array} The new array of code points.
+	 */
+	function ucs2decode(string) {
+		var output = [],
+		    counter = 0,
+		    length = string.length,
+		    value,
+		    extra;
+		while (counter < length) {
+			value = string.charCodeAt(counter++);
+			if (value >= 0xD800 && value <= 0xDBFF && counter < length) {
+				// high surrogate, and there is a next character
+				extra = string.charCodeAt(counter++);
+				if ((extra & 0xFC00) == 0xDC00) { // low surrogate
+					output.push(((value & 0x3FF) << 10) + (extra & 0x3FF) + 0x10000);
+				} else {
+					// unmatched surrogate; only append this code unit, in case the next
+					// code unit is the high surrogate of a surrogate pair
+					output.push(value);
+					counter--;
+				}
+			} else {
+				output.push(value);
+			}
+		}
+		return output;
+	}
+
+	/**
+	 * Creates a string based on an array of numeric code points.
+	 * @see `punycode.ucs2.decode`
+	 * @memberOf punycode.ucs2
+	 * @name encode
+	 * @param {Array} codePoints The array of numeric code points.
+	 * @returns {String} The new Unicode string (UCS-2).
+	 */
+	function ucs2encode(array) {
+		return map(array, function(value) {
+			var output = '';
+			if (value > 0xFFFF) {
+				value -= 0x10000;
+				output += stringFromCharCode(value >>> 10 & 0x3FF | 0xD800);
+				value = 0xDC00 | value & 0x3FF;
+			}
+			output += stringFromCharCode(value);
+			return output;
+		}).join('');
+	}
+
+	/**
+	 * Converts a basic code point into a digit/integer.
+	 * @see `digitToBasic()`
+	 * @private
+	 * @param {Number} codePoint The basic numeric code point value.
+	 * @returns {Number} The numeric value of a basic code point (for use in
+	 * representing integers) in the range `0` to `base - 1`, or `base` if
+	 * the code point does not represent a value.
+	 */
+	function basicToDigit(codePoint) {
+		if (codePoint - 48 < 10) {
+			return codePoint - 22;
+		}
+		if (codePoint - 65 < 26) {
+			return codePoint - 65;
+		}
+		if (codePoint - 97 < 26) {
+			return codePoint - 97;
+		}
+		return base;
+	}
+
+	/**
+	 * Converts a digit/integer into a basic code point.
+	 * @see `basicToDigit()`
+	 * @private
+	 * @param {Number} digit The numeric value of a basic code point.
+	 * @returns {Number} The basic code point whose value (when used for
+	 * representing integers) is `digit`, which needs to be in the range
+	 * `0` to `base - 1`. If `flag` is non-zero, the uppercase form is
+	 * used; else, the lowercase form is used. The behavior is undefined
+	 * if `flag` is non-zero and `digit` has no uppercase form.
+	 */
+	function digitToBasic(digit, flag) {
+		//  0..25 map to ASCII a..z or A..Z
+		// 26..35 map to ASCII 0..9
+		return digit + 22 + 75 * (digit < 26) - ((flag != 0) << 5);
+	}
+
+	/**
+	 * Bias adaptation function as per section 3.4 of RFC 3492.
+	 * http://tools.ietf.org/html/rfc3492#section-3.4
+	 * @private
+	 */
+	function adapt(delta, numPoints, firstTime) {
+		var k = 0;
+		delta = firstTime ? floor(delta / damp) : delta >> 1;
+		delta += floor(delta / numPoints);
+		for (/* no initialization */; delta > baseMinusTMin * tMax >> 1; k += base) {
+			delta = floor(delta / baseMinusTMin);
+		}
+		return floor(k + (baseMinusTMin + 1) * delta / (delta + skew));
+	}
+
+	/**
+	 * Converts a Punycode string of ASCII-only symbols to a string of Unicode
+	 * symbols.
+	 * @memberOf punycode
+	 * @param {String} input The Punycode string of ASCII-only symbols.
+	 * @returns {String} The resulting string of Unicode symbols.
+	 */
+	function decode(input) {
+		// Don't use UCS-2
+		var output = [],
+		    inputLength = input.length,
+		    out,
+		    i = 0,
+		    n = initialN,
+		    bias = initialBias,
+		    basic,
+		    j,
+		    index,
+		    oldi,
+		    w,
+		    k,
+		    digit,
+		    t,
+		    /** Cached calculation results */
+		    baseMinusT;
+
+		// Handle the basic code points: let `basic` be the number of input code
+		// points before the last delimiter, or `0` if there is none, then copy
+		// the first basic code points to the output.
+
+		basic = input.lastIndexOf(delimiter);
+		if (basic < 0) {
+			basic = 0;
+		}
+
+		for (j = 0; j < basic; ++j) {
+			// if it's not a basic code point
+			if (input.charCodeAt(j) >= 0x80) {
+				error('not-basic');
+			}
+			output.push(input.charCodeAt(j));
+		}
+
+		// Main decoding loop: start just after the last delimiter if any basic code
+		// points were copied; start at the beginning otherwise.
+
+		for (index = basic > 0 ? basic + 1 : 0; index < inputLength; /* no final expression */) {
+
+			// `index` is the index of the next character to be consumed.
+			// Decode a generalized variable-length integer into `delta`,
+			// which gets added to `i`. The overflow checking is easier
+			// if we increase `i` as we go, then subtract off its starting
+			// value at the end to obtain `delta`.
+			for (oldi = i, w = 1, k = base; /* no condition */; k += base) {
+
+				if (index >= inputLength) {
+					error('invalid-input');
+				}
+
+				digit = basicToDigit(input.charCodeAt(index++));
+
+				if (digit >= base || digit > floor((maxInt - i) / w)) {
+					error('overflow');
+				}
+
+				i += digit * w;
+				t = k <= bias ? tMin : (k >= bias + tMax ? tMax : k - bias);
+
+				if (digit < t) {
+					break;
+				}
+
+				baseMinusT = base - t;
+				if (w > floor(maxInt / baseMinusT)) {
+					error('overflow');
+				}
+
+				w *= baseMinusT;
+
+			}
+
+			out = output.length + 1;
+			bias = adapt(i - oldi, out, oldi == 0);
+
+			// `i` was supposed to wrap around from `out` to `0`,
+			// incrementing `n` each time, so we'll fix that now:
+			if (floor(i / out) > maxInt - n) {
+				error('overflow');
+			}
+
+			n += floor(i / out);
+			i %= out;
+
+			// Insert `n` at position `i` of the output
+			output.splice(i++, 0, n);
+
+		}
+
+		return ucs2encode(output);
+	}
+
+	/**
+	 * Converts a string of Unicode symbols (e.g. a domain name label) to a
+	 * Punycode string of ASCII-only symbols.
+	 * @memberOf punycode
+	 * @param {String} input The string of Unicode symbols.
+	 * @returns {String} The resulting Punycode string of ASCII-only symbols.
+	 */
+	function encode(input) {
+		var n,
+		    delta,
+		    handledCPCount,
+		    basicLength,
+		    bias,
+		    j,
+		    m,
+		    q,
+		    k,
+		    t,
+		    currentValue,
+		    output = [],
+		    /** `inputLength` will hold the number of code points in `input`. */
+		    inputLength,
+		    /** Cached calculation results */
+		    handledCPCountPlusOne,
+		    baseMinusT,
+		    qMinusT;
+
+		// Convert the input in UCS-2 to Unicode
+		input = ucs2decode(input);
+
+		// Cache the length
+		inputLength = input.length;
+
+		// Initialize the state
+		n = initialN;
+		delta = 0;
+		bias = initialBias;
+
+		// Handle the basic code points
+		for (j = 0; j < inputLength; ++j) {
+			currentValue = input[j];
+			if (currentValue < 0x80) {
+				output.push(stringFromCharCode(currentValue));
+			}
+		}
+
+		handledCPCount = basicLength = output.length;
+
+		// `handledCPCount` is the number of code points that have been handled;
+		// `basicLength` is the number of basic code points.
+
+		// Finish the basic string - if it is not empty - with a delimiter
+		if (basicLength) {
+			output.push(delimiter);
+		}
+
+		// Main encoding loop:
+		while (handledCPCount < inputLength) {
+
+			// All non-basic code points < n have been handled already. Find the next
+			// larger one:
+			for (m = maxInt, j = 0; j < inputLength; ++j) {
+				currentValue = input[j];
+				if (currentValue >= n && currentValue < m) {
+					m = currentValue;
+				}
+			}
+
+			// Increase `delta` enough to advance the decoder's <n,i> state to <m,0>,
+			// but guard against overflow
+			handledCPCountPlusOne = handledCPCount + 1;
+			if (m - n > floor((maxInt - delta) / handledCPCountPlusOne)) {
+				error('overflow');
+			}
+
+			delta += (m - n) * handledCPCountPlusOne;
+			n = m;
+
+			for (j = 0; j < inputLength; ++j) {
+				currentValue = input[j];
+
+				if (currentValue < n && ++delta > maxInt) {
+					error('overflow');
+				}
+
+				if (currentValue == n) {
+					// Represent delta as a generalized variable-length integer
+					for (q = delta, k = base; /* no condition */; k += base) {
+						t = k <= bias ? tMin : (k >= bias + tMax ? tMax : k - bias);
+						if (q < t) {
+							break;
+						}
+						qMinusT = q - t;
+						baseMinusT = base - t;
+						output.push(
+							stringFromCharCode(digitToBasic(t + qMinusT % baseMinusT, 0))
+						);
+						q = floor(qMinusT / baseMinusT);
+					}
+
+					output.push(stringFromCharCode(digitToBasic(q, 0)));
+					bias = adapt(delta, handledCPCountPlusOne, handledCPCount == basicLength);
+					delta = 0;
+					++handledCPCount;
+				}
+			}
+
+			++delta;
+			++n;
+
+		}
+		return output.join('');
+	}
+
+	/**
+	 * Converts a Punycode string representing a domain name or an email address
+	 * to Unicode. Only the Punycoded parts of the input will be converted, i.e.
+	 * it doesn't matter if you call it on a string that has already been
+	 * converted to Unicode.
+	 * @memberOf punycode
+	 * @param {String} input The Punycoded domain name or email address to
+	 * convert to Unicode.
+	 * @returns {String} The Unicode representation of the given Punycode
+	 * string.
+	 */
+	function toUnicode(input) {
+		return mapDomain(input, function(string) {
+			return regexPunycode.test(string)
+				? decode(string.slice(4).toLowerCase())
+				: string;
+		});
+	}
+
+	/**
+	 * Converts a Unicode string representing a domain name or an email address to
+	 * Punycode. Only the non-ASCII parts of the domain name will be converted,
+	 * i.e. it doesn't matter if you call it with a domain that's already in
+	 * ASCII.
+	 * @memberOf punycode
+	 * @param {String} input The domain name or email address to convert, as a
+	 * Unicode string.
+	 * @returns {String} The Punycode representation of the given domain name or
+	 * email address.
+	 */
+	function toASCII(input) {
+		return mapDomain(input, function(string) {
+			return regexNonASCII.test(string)
+				? 'xn--' + encode(string)
+				: string;
+		});
+	}
+
+	/*--------------------------------------------------------------------------*/
+
+	/** Define the public API */
+	punycode = {
+		/**
+		 * A string representing the current Punycode.js version number.
+		 * @memberOf punycode
+		 * @type String
+		 */
+		'version': '1.3.2',
+		/**
+		 * An object of methods to convert from JavaScript's internal character
+		 * representation (UCS-2) to Unicode code points, and back.
+		 * @see <https://mathiasbynens.be/notes/javascript-encoding>
+		 * @memberOf punycode
+		 * @type Object
+		 */
+		'ucs2': {
+			'decode': ucs2decode,
+			'encode': ucs2encode
+		},
+		'decode': decode,
+		'encode': encode,
+		'toASCII': toASCII,
+		'toUnicode': toUnicode
+	};
+
+	/** Expose `punycode` */
+	// Some AMD build optimizers, like r.js, check for specific condition patterns
+	// like the following:
+	if (
+		typeof define == 'function' &&
+		typeof define.amd == 'object' &&
+		define.amd
+	) {
+		define('punycode', function() {
+			return punycode;
+		});
+	} else if (freeExports && freeModule) {
+		if (module.exports == freeExports) { // in Node.js or RingoJS v0.8.0+
+			freeModule.exports = punycode;
+		} else { // in Narwhal or RingoJS v0.7.0-
+			for (key in punycode) {
+				punycode.hasOwnProperty(key) && (freeExports[key] = punycode[key]);
+			}
+		}
+	} else { // in Rhino or a web browser
+		root.punycode = punycode;
+	}
+
+}(this));
+
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{}],61:[function(require,module,exports){
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+'use strict';
+
+// If obj.hasOwnProperty has been overridden, then calling
+// obj.hasOwnProperty(prop) will break.
+// See: https://github.com/joyent/node/issues/1707
+function hasOwnProperty(obj, prop) {
+  return Object.prototype.hasOwnProperty.call(obj, prop);
+}
+
+module.exports = function(qs, sep, eq, options) {
+  sep = sep || '&';
+  eq = eq || '=';
+  var obj = {};
+
+  if (typeof qs !== 'string' || qs.length === 0) {
+    return obj;
+  }
+
+  var regexp = /\+/g;
+  qs = qs.split(sep);
+
+  var maxKeys = 1000;
+  if (options && typeof options.maxKeys === 'number') {
+    maxKeys = options.maxKeys;
+  }
+
+  var len = qs.length;
+  // maxKeys <= 0 means that we should not limit keys count
+  if (maxKeys > 0 && len > maxKeys) {
+    len = maxKeys;
+  }
+
+  for (var i = 0; i < len; ++i) {
+    var x = qs[i].replace(regexp, '%20'),
+        idx = x.indexOf(eq),
+        kstr, vstr, k, v;
+
+    if (idx >= 0) {
+      kstr = x.substr(0, idx);
+      vstr = x.substr(idx + 1);
+    } else {
+      kstr = x;
+      vstr = '';
+    }
+
+    k = decodeURIComponent(kstr);
+    v = decodeURIComponent(vstr);
+
+    if (!hasOwnProperty(obj, k)) {
+      obj[k] = v;
+    } else if (isArray(obj[k])) {
+      obj[k].push(v);
+    } else {
+      obj[k] = [obj[k], v];
+    }
+  }
+
+  return obj;
+};
+
+var isArray = Array.isArray || function (xs) {
+  return Object.prototype.toString.call(xs) === '[object Array]';
+};
+
+},{}],62:[function(require,module,exports){
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+'use strict';
+
+var stringifyPrimitive = function(v) {
+  switch (typeof v) {
+    case 'string':
+      return v;
+
+    case 'boolean':
+      return v ? 'true' : 'false';
+
+    case 'number':
+      return isFinite(v) ? v : '';
+
+    default:
+      return '';
+  }
+};
+
+module.exports = function(obj, sep, eq, name) {
+  sep = sep || '&';
+  eq = eq || '=';
+  if (obj === null) {
+    obj = undefined;
+  }
+
+  if (typeof obj === 'object') {
+    return map(objectKeys(obj), function(k) {
+      var ks = encodeURIComponent(stringifyPrimitive(k)) + eq;
+      if (isArray(obj[k])) {
+        return map(obj[k], function(v) {
+          return ks + encodeURIComponent(stringifyPrimitive(v));
+        }).join(sep);
+      } else {
+        return ks + encodeURIComponent(stringifyPrimitive(obj[k]));
+      }
+    }).join(sep);
+
+  }
+
+  if (!name) return '';
+  return encodeURIComponent(stringifyPrimitive(name)) + eq +
+         encodeURIComponent(stringifyPrimitive(obj));
+};
+
+var isArray = Array.isArray || function (xs) {
+  return Object.prototype.toString.call(xs) === '[object Array]';
+};
+
+function map (xs, f) {
+  if (xs.map) return xs.map(f);
+  var res = [];
+  for (var i = 0; i < xs.length; i++) {
+    res.push(f(xs[i], i));
+  }
+  return res;
+}
+
+var objectKeys = Object.keys || function (obj) {
+  var res = [];
+  for (var key in obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, key)) res.push(key);
+  }
+  return res;
+};
+
+},{}],63:[function(require,module,exports){
+'use strict';
+
+exports.decode = exports.parse = require('./decode');
+exports.encode = exports.stringify = require('./encode');
+
+},{"./decode":61,"./encode":62}],64:[function(require,module,exports){
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+var punycode = require('punycode');
+
+exports.parse = urlParse;
+exports.resolve = urlResolve;
+exports.resolveObject = urlResolveObject;
+exports.format = urlFormat;
+
+exports.Url = Url;
+
+function Url() {
+  this.protocol = null;
+  this.slashes = null;
+  this.auth = null;
+  this.host = null;
+  this.port = null;
+  this.hostname = null;
+  this.hash = null;
+  this.search = null;
+  this.query = null;
+  this.pathname = null;
+  this.path = null;
+  this.href = null;
+}
+
+// Reference: RFC 3986, RFC 1808, RFC 2396
+
+// define these here so at least they only have to be
+// compiled once on the first module load.
+var protocolPattern = /^([a-z0-9.+-]+:)/i,
+    portPattern = /:[0-9]*$/,
+
+    // RFC 2396: characters reserved for delimiting URLs.
+    // We actually just auto-escape these.
+    delims = ['<', '>', '"', '`', ' ', '\r', '\n', '\t'],
+
+    // RFC 2396: characters not allowed for various reasons.
+    unwise = ['{', '}', '|', '\\', '^', '`'].concat(delims),
+
+    // Allowed by RFCs, but cause of XSS attacks.  Always escape these.
+    autoEscape = ['\''].concat(unwise),
+    // Characters that are never ever allowed in a hostname.
+    // Note that any invalid chars are also handled, but these
+    // are the ones that are *expected* to be seen, so we fast-path
+    // them.
+    nonHostChars = ['%', '/', '?', ';', '#'].concat(autoEscape),
+    hostEndingChars = ['/', '?', '#'],
+    hostnameMaxLen = 255,
+    hostnamePartPattern = /^[a-z0-9A-Z_-]{0,63}$/,
+    hostnamePartStart = /^([a-z0-9A-Z_-]{0,63})(.*)$/,
+    // protocols that can allow "unsafe" and "unwise" chars.
+    unsafeProtocol = {
+      'javascript': true,
+      'javascript:': true
+    },
+    // protocols that never have a hostname.
+    hostlessProtocol = {
+      'javascript': true,
+      'javascript:': true
+    },
+    // protocols that always contain a // bit.
+    slashedProtocol = {
+      'http': true,
+      'https': true,
+      'ftp': true,
+      'gopher': true,
+      'file': true,
+      'http:': true,
+      'https:': true,
+      'ftp:': true,
+      'gopher:': true,
+      'file:': true
+    },
+    querystring = require('querystring');
+
+function urlParse(url, parseQueryString, slashesDenoteHost) {
+  if (url && isObject(url) && url instanceof Url) return url;
+
+  var u = new Url;
+  u.parse(url, parseQueryString, slashesDenoteHost);
+  return u;
+}
+
+Url.prototype.parse = function(url, parseQueryString, slashesDenoteHost) {
+  if (!isString(url)) {
+    throw new TypeError("Parameter 'url' must be a string, not " + typeof url);
+  }
+
+  var rest = url;
+
+  // trim before proceeding.
+  // This is to support parse stuff like "  http://foo.com  \n"
+  rest = rest.trim();
+
+  var proto = protocolPattern.exec(rest);
+  if (proto) {
+    proto = proto[0];
+    var lowerProto = proto.toLowerCase();
+    this.protocol = lowerProto;
+    rest = rest.substr(proto.length);
+  }
+
+  // figure out if it's got a host
+  // user@server is *always* interpreted as a hostname, and url
+  // resolution will treat //foo/bar as host=foo,path=bar because that's
+  // how the browser resolves relative URLs.
+  if (slashesDenoteHost || proto || rest.match(/^\/\/[^@\/]+@[^@\/]+/)) {
+    var slashes = rest.substr(0, 2) === '//';
+    if (slashes && !(proto && hostlessProtocol[proto])) {
+      rest = rest.substr(2);
+      this.slashes = true;
+    }
+  }
+
+  if (!hostlessProtocol[proto] &&
+      (slashes || (proto && !slashedProtocol[proto]))) {
+
+    // there's a hostname.
+    // the first instance of /, ?, ;, or # ends the host.
+    //
+    // If there is an @ in the hostname, then non-host chars *are* allowed
+    // to the left of the last @ sign, unless some host-ending character
+    // comes *before* the @-sign.
+    // URLs are obnoxious.
+    //
+    // ex:
+    // http://a@b@c/ => user:a@b host:c
+    // http://a@b?@c => user:a host:c path:/?@c
+
+    // v0.12 TODO(isaacs): This is not quite how Chrome does things.
+    // Review our test case against browsers more comprehensively.
+
+    // find the first instance of any hostEndingChars
+    var hostEnd = -1;
+    for (var i = 0; i < hostEndingChars.length; i++) {
+      var hec = rest.indexOf(hostEndingChars[i]);
+      if (hec !== -1 && (hostEnd === -1 || hec < hostEnd))
+        hostEnd = hec;
+    }
+
+    // at this point, either we have an explicit point where the
+    // auth portion cannot go past, or the last @ char is the decider.
+    var auth, atSign;
+    if (hostEnd === -1) {
+      // atSign can be anywhere.
+      atSign = rest.lastIndexOf('@');
+    } else {
+      // atSign must be in auth portion.
+      // http://a@b/c@d => host:b auth:a path:/c@d
+      atSign = rest.lastIndexOf('@', hostEnd);
+    }
+
+    // Now we have a portion which is definitely the auth.
+    // Pull that off.
+    if (atSign !== -1) {
+      auth = rest.slice(0, atSign);
+      rest = rest.slice(atSign + 1);
+      this.auth = decodeURIComponent(auth);
+    }
+
+    // the host is the remaining to the left of the first non-host char
+    hostEnd = -1;
+    for (var i = 0; i < nonHostChars.length; i++) {
+      var hec = rest.indexOf(nonHostChars[i]);
+      if (hec !== -1 && (hostEnd === -1 || hec < hostEnd))
+        hostEnd = hec;
+    }
+    // if we still have not hit it, then the entire thing is a host.
+    if (hostEnd === -1)
+      hostEnd = rest.length;
+
+    this.host = rest.slice(0, hostEnd);
+    rest = rest.slice(hostEnd);
+
+    // pull out port.
+    this.parseHost();
+
+    // we've indicated that there is a hostname,
+    // so even if it's empty, it has to be present.
+    this.hostname = this.hostname || '';
+
+    // if hostname begins with [ and ends with ]
+    // assume that it's an IPv6 address.
+    var ipv6Hostname = this.hostname[0] === '[' &&
+        this.hostname[this.hostname.length - 1] === ']';
+
+    // validate a little.
+    if (!ipv6Hostname) {
+      var hostparts = this.hostname.split(/\./);
+      for (var i = 0, l = hostparts.length; i < l; i++) {
+        var part = hostparts[i];
+        if (!part) continue;
+        if (!part.match(hostnamePartPattern)) {
+          var newpart = '';
+          for (var j = 0, k = part.length; j < k; j++) {
+            if (part.charCodeAt(j) > 127) {
+              // we replace non-ASCII char with a temporary placeholder
+              // we need this to make sure size of hostname is not
+              // broken by replacing non-ASCII by nothing
+              newpart += 'x';
+            } else {
+              newpart += part[j];
+            }
+          }
+          // we test again with ASCII char only
+          if (!newpart.match(hostnamePartPattern)) {
+            var validParts = hostparts.slice(0, i);
+            var notHost = hostparts.slice(i + 1);
+            var bit = part.match(hostnamePartStart);
+            if (bit) {
+              validParts.push(bit[1]);
+              notHost.unshift(bit[2]);
+            }
+            if (notHost.length) {
+              rest = '/' + notHost.join('.') + rest;
+            }
+            this.hostname = validParts.join('.');
+            break;
+          }
+        }
+      }
+    }
+
+    if (this.hostname.length > hostnameMaxLen) {
+      this.hostname = '';
+    } else {
+      // hostnames are always lower case.
+      this.hostname = this.hostname.toLowerCase();
+    }
+
+    if (!ipv6Hostname) {
+      // IDNA Support: Returns a puny coded representation of "domain".
+      // It only converts the part of the domain name that
+      // has non ASCII characters. I.e. it dosent matter if
+      // you call it with a domain that already is in ASCII.
+      var domainArray = this.hostname.split('.');
+      var newOut = [];
+      for (var i = 0; i < domainArray.length; ++i) {
+        var s = domainArray[i];
+        newOut.push(s.match(/[^A-Za-z0-9_-]/) ?
+            'xn--' + punycode.encode(s) : s);
+      }
+      this.hostname = newOut.join('.');
+    }
+
+    var p = this.port ? ':' + this.port : '';
+    var h = this.hostname || '';
+    this.host = h + p;
+    this.href += this.host;
+
+    // strip [ and ] from the hostname
+    // the host field still retains them, though
+    if (ipv6Hostname) {
+      this.hostname = this.hostname.substr(1, this.hostname.length - 2);
+      if (rest[0] !== '/') {
+        rest = '/' + rest;
+      }
+    }
+  }
+
+  // now rest is set to the post-host stuff.
+  // chop off any delim chars.
+  if (!unsafeProtocol[lowerProto]) {
+
+    // First, make 100% sure that any "autoEscape" chars get
+    // escaped, even if encodeURIComponent doesn't think they
+    // need to be.
+    for (var i = 0, l = autoEscape.length; i < l; i++) {
+      var ae = autoEscape[i];
+      var esc = encodeURIComponent(ae);
+      if (esc === ae) {
+        esc = escape(ae);
+      }
+      rest = rest.split(ae).join(esc);
+    }
+  }
+
+
+  // chop off from the tail first.
+  var hash = rest.indexOf('#');
+  if (hash !== -1) {
+    // got a fragment string.
+    this.hash = rest.substr(hash);
+    rest = rest.slice(0, hash);
+  }
+  var qm = rest.indexOf('?');
+  if (qm !== -1) {
+    this.search = rest.substr(qm);
+    this.query = rest.substr(qm + 1);
+    if (parseQueryString) {
+      this.query = querystring.parse(this.query);
+    }
+    rest = rest.slice(0, qm);
+  } else if (parseQueryString) {
+    // no query string, but parseQueryString still requested
+    this.search = '';
+    this.query = {};
+  }
+  if (rest) this.pathname = rest;
+  if (slashedProtocol[lowerProto] &&
+      this.hostname && !this.pathname) {
+    this.pathname = '/';
+  }
+
+  //to support http.request
+  if (this.pathname || this.search) {
+    var p = this.pathname || '';
+    var s = this.search || '';
+    this.path = p + s;
+  }
+
+  // finally, reconstruct the href based on what has been validated.
+  this.href = this.format();
+  return this;
+};
+
+// format a parsed object into a url string
+function urlFormat(obj) {
+  // ensure it's an object, and not a string url.
+  // If it's an obj, this is a no-op.
+  // this way, you can call url_format() on strings
+  // to clean up potentially wonky urls.
+  if (isString(obj)) obj = urlParse(obj);
+  if (!(obj instanceof Url)) return Url.prototype.format.call(obj);
+  return obj.format();
+}
+
+Url.prototype.format = function() {
+  var auth = this.auth || '';
+  if (auth) {
+    auth = encodeURIComponent(auth);
+    auth = auth.replace(/%3A/i, ':');
+    auth += '@';
+  }
+
+  var protocol = this.protocol || '',
+      pathname = this.pathname || '',
+      hash = this.hash || '',
+      host = false,
+      query = '';
+
+  if (this.host) {
+    host = auth + this.host;
+  } else if (this.hostname) {
+    host = auth + (this.hostname.indexOf(':') === -1 ?
+        this.hostname :
+        '[' + this.hostname + ']');
+    if (this.port) {
+      host += ':' + this.port;
+    }
+  }
+
+  if (this.query &&
+      isObject(this.query) &&
+      Object.keys(this.query).length) {
+    query = querystring.stringify(this.query);
+  }
+
+  var search = this.search || (query && ('?' + query)) || '';
+
+  if (protocol && protocol.substr(-1) !== ':') protocol += ':';
+
+  // only the slashedProtocols get the //.  Not mailto:, xmpp:, etc.
+  // unless they had them to begin with.
+  if (this.slashes ||
+      (!protocol || slashedProtocol[protocol]) && host !== false) {
+    host = '//' + (host || '');
+    if (pathname && pathname.charAt(0) !== '/') pathname = '/' + pathname;
+  } else if (!host) {
+    host = '';
+  }
+
+  if (hash && hash.charAt(0) !== '#') hash = '#' + hash;
+  if (search && search.charAt(0) !== '?') search = '?' + search;
+
+  pathname = pathname.replace(/[?#]/g, function(match) {
+    return encodeURIComponent(match);
+  });
+  search = search.replace('#', '%23');
+
+  return protocol + host + pathname + search + hash;
+};
+
+function urlResolve(source, relative) {
+  return urlParse(source, false, true).resolve(relative);
+}
+
+Url.prototype.resolve = function(relative) {
+  return this.resolveObject(urlParse(relative, false, true)).format();
+};
+
+function urlResolveObject(source, relative) {
+  if (!source) return relative;
+  return urlParse(source, false, true).resolveObject(relative);
+}
+
+Url.prototype.resolveObject = function(relative) {
+  if (isString(relative)) {
+    var rel = new Url();
+    rel.parse(relative, false, true);
+    relative = rel;
+  }
+
+  var result = new Url();
+  Object.keys(this).forEach(function(k) {
+    result[k] = this[k];
+  }, this);
+
+  // hash is always overridden, no matter what.
+  // even href="" will remove it.
+  result.hash = relative.hash;
+
+  // if the relative url is empty, then there's nothing left to do here.
+  if (relative.href === '') {
+    result.href = result.format();
+    return result;
+  }
+
+  // hrefs like //foo/bar always cut to the protocol.
+  if (relative.slashes && !relative.protocol) {
+    // take everything except the protocol from relative
+    Object.keys(relative).forEach(function(k) {
+      if (k !== 'protocol')
+        result[k] = relative[k];
+    });
+
+    //urlParse appends trailing / to urls like http://www.example.com
+    if (slashedProtocol[result.protocol] &&
+        result.hostname && !result.pathname) {
+      result.path = result.pathname = '/';
+    }
+
+    result.href = result.format();
+    return result;
+  }
+
+  if (relative.protocol && relative.protocol !== result.protocol) {
+    // if it's a known url protocol, then changing
+    // the protocol does weird things
+    // first, if it's not file:, then we MUST have a host,
+    // and if there was a path
+    // to begin with, then we MUST have a path.
+    // if it is file:, then the host is dropped,
+    // because that's known to be hostless.
+    // anything else is assumed to be absolute.
+    if (!slashedProtocol[relative.protocol]) {
+      Object.keys(relative).forEach(function(k) {
+        result[k] = relative[k];
+      });
+      result.href = result.format();
+      return result;
+    }
+
+    result.protocol = relative.protocol;
+    if (!relative.host && !hostlessProtocol[relative.protocol]) {
+      var relPath = (relative.pathname || '').split('/');
+      while (relPath.length && !(relative.host = relPath.shift()));
+      if (!relative.host) relative.host = '';
+      if (!relative.hostname) relative.hostname = '';
+      if (relPath[0] !== '') relPath.unshift('');
+      if (relPath.length < 2) relPath.unshift('');
+      result.pathname = relPath.join('/');
+    } else {
+      result.pathname = relative.pathname;
+    }
+    result.search = relative.search;
+    result.query = relative.query;
+    result.host = relative.host || '';
+    result.auth = relative.auth;
+    result.hostname = relative.hostname || relative.host;
+    result.port = relative.port;
+    // to support http.request
+    if (result.pathname || result.search) {
+      var p = result.pathname || '';
+      var s = result.search || '';
+      result.path = p + s;
+    }
+    result.slashes = result.slashes || relative.slashes;
+    result.href = result.format();
+    return result;
+  }
+
+  var isSourceAbs = (result.pathname && result.pathname.charAt(0) === '/'),
+      isRelAbs = (
+          relative.host ||
+          relative.pathname && relative.pathname.charAt(0) === '/'
+      ),
+      mustEndAbs = (isRelAbs || isSourceAbs ||
+                    (result.host && relative.pathname)),
+      removeAllDots = mustEndAbs,
+      srcPath = result.pathname && result.pathname.split('/') || [],
+      relPath = relative.pathname && relative.pathname.split('/') || [],
+      psychotic = result.protocol && !slashedProtocol[result.protocol];
+
+  // if the url is a non-slashed url, then relative
+  // links like ../.. should be able
+  // to crawl up to the hostname, as well.  This is strange.
+  // result.protocol has already been set by now.
+  // Later on, put the first path part into the host field.
+  if (psychotic) {
+    result.hostname = '';
+    result.port = null;
+    if (result.host) {
+      if (srcPath[0] === '') srcPath[0] = result.host;
+      else srcPath.unshift(result.host);
+    }
+    result.host = '';
+    if (relative.protocol) {
+      relative.hostname = null;
+      relative.port = null;
+      if (relative.host) {
+        if (relPath[0] === '') relPath[0] = relative.host;
+        else relPath.unshift(relative.host);
+      }
+      relative.host = null;
+    }
+    mustEndAbs = mustEndAbs && (relPath[0] === '' || srcPath[0] === '');
+  }
+
+  if (isRelAbs) {
+    // it's absolute.
+    result.host = (relative.host || relative.host === '') ?
+                  relative.host : result.host;
+    result.hostname = (relative.hostname || relative.hostname === '') ?
+                      relative.hostname : result.hostname;
+    result.search = relative.search;
+    result.query = relative.query;
+    srcPath = relPath;
+    // fall through to the dot-handling below.
+  } else if (relPath.length) {
+    // it's relative
+    // throw away the existing file, and take the new path instead.
+    if (!srcPath) srcPath = [];
+    srcPath.pop();
+    srcPath = srcPath.concat(relPath);
+    result.search = relative.search;
+    result.query = relative.query;
+  } else if (!isNullOrUndefined(relative.search)) {
+    // just pull out the search.
+    // like href='?foo'.
+    // Put this after the other two cases because it simplifies the booleans
+    if (psychotic) {
+      result.hostname = result.host = srcPath.shift();
+      //occationaly the auth can get stuck only in host
+      //this especialy happens in cases like
+      //url.resolveObject('mailto:local1@domain1', 'local2@domain2')
+      var authInHost = result.host && result.host.indexOf('@') > 0 ?
+                       result.host.split('@') : false;
+      if (authInHost) {
+        result.auth = authInHost.shift();
+        result.host = result.hostname = authInHost.shift();
+      }
+    }
+    result.search = relative.search;
+    result.query = relative.query;
+    //to support http.request
+    if (!isNull(result.pathname) || !isNull(result.search)) {
+      result.path = (result.pathname ? result.pathname : '') +
+                    (result.search ? result.search : '');
+    }
+    result.href = result.format();
+    return result;
+  }
+
+  if (!srcPath.length) {
+    // no path at all.  easy.
+    // we've already handled the other stuff above.
+    result.pathname = null;
+    //to support http.request
+    if (result.search) {
+      result.path = '/' + result.search;
+    } else {
+      result.path = null;
+    }
+    result.href = result.format();
+    return result;
+  }
+
+  // if a url ENDs in . or .., then it must get a trailing slash.
+  // however, if it ends in anything else non-slashy,
+  // then it must NOT get a trailing slash.
+  var last = srcPath.slice(-1)[0];
+  var hasTrailingSlash = (
+      (result.host || relative.host) && (last === '.' || last === '..') ||
+      last === '');
+
+  // strip single dots, resolve double dots to parent dir
+  // if the path tries to go above the root, `up` ends up > 0
+  var up = 0;
+  for (var i = srcPath.length; i >= 0; i--) {
+    last = srcPath[i];
+    if (last == '.') {
+      srcPath.splice(i, 1);
+    } else if (last === '..') {
+      srcPath.splice(i, 1);
+      up++;
+    } else if (up) {
+      srcPath.splice(i, 1);
+      up--;
+    }
+  }
+
+  // if the path is allowed to go above the root, restore leading ..s
+  if (!mustEndAbs && !removeAllDots) {
+    for (; up--; up) {
+      srcPath.unshift('..');
+    }
+  }
+
+  if (mustEndAbs && srcPath[0] !== '' &&
+      (!srcPath[0] || srcPath[0].charAt(0) !== '/')) {
+    srcPath.unshift('');
+  }
+
+  if (hasTrailingSlash && (srcPath.join('/').substr(-1) !== '/')) {
+    srcPath.push('');
+  }
+
+  var isAbsolute = srcPath[0] === '' ||
+      (srcPath[0] && srcPath[0].charAt(0) === '/');
+
+  // put the host back
+  if (psychotic) {
+    result.hostname = result.host = isAbsolute ? '' :
+                                    srcPath.length ? srcPath.shift() : '';
+    //occationaly the auth can get stuck only in host
+    //this especialy happens in cases like
+    //url.resolveObject('mailto:local1@domain1', 'local2@domain2')
+    var authInHost = result.host && result.host.indexOf('@') > 0 ?
+                     result.host.split('@') : false;
+    if (authInHost) {
+      result.auth = authInHost.shift();
+      result.host = result.hostname = authInHost.shift();
+    }
+  }
+
+  mustEndAbs = mustEndAbs || (result.host && srcPath.length);
+
+  if (mustEndAbs && !isAbsolute) {
+    srcPath.unshift('');
+  }
+
+  if (!srcPath.length) {
+    result.pathname = null;
+    result.path = null;
+  } else {
+    result.pathname = srcPath.join('/');
+  }
+
+  //to support request.http
+  if (!isNull(result.pathname) || !isNull(result.search)) {
+    result.path = (result.pathname ? result.pathname : '') +
+                  (result.search ? result.search : '');
+  }
+  result.auth = relative.auth || result.auth;
+  result.slashes = result.slashes || relative.slashes;
+  result.href = result.format();
+  return result;
+};
+
+Url.prototype.parseHost = function() {
+  var host = this.host;
+  var port = portPattern.exec(host);
+  if (port) {
+    port = port[0];
+    if (port !== ':') {
+      this.port = port.substr(1);
+    }
+    host = host.substr(0, host.length - port.length);
+  }
+  if (host) this.hostname = host;
+};
+
+function isString(arg) {
+  return typeof arg === "string";
+}
+
+function isObject(arg) {
+  return typeof arg === 'object' && arg !== null;
+}
+
+function isNull(arg) {
+  return arg === null;
+}
+function isNullOrUndefined(arg) {
+  return  arg == null;
+}
+
+},{"punycode":60,"querystring":63}],65:[function(require,module,exports){
 var request = require('superagent');
 var io = require('socket.io-client');
 var _ = require('lodash');
 var es6shim = require('es6-shim');
 var now = require('performance-now');
+var PushStream = require('./nginx-pushstream.js');
+var url = require('url');
 var ChatUp = (function () {
     function ChatUp(conf) {
         var _this = this;
         this.init = function () {
             if (_this._initPromise)
                 return _this._initPromise;
-            return _this._initPromise = _this._getChatWorker()
-                .then(_this._connectSocket)
-                .then(_this._authenticate)
-                .then(_this._join)
+            var promise = _this._initPromise = _this._getChatWorker().then(_this._connectSocket);
+            if (_this._conf.userInfo) {
+                promise = promise.then(_this._authenticate);
+            }
+            return promise.then(_this._join)
                 .then(function () {
                 return _this;
             });
@@ -23387,15 +26088,22 @@ var ChatUp = (function () {
             });
         };
         this.onMsg = function (handler) {
-            _this._waitInit(function () {
-                _this._socket.on('msg', function (messages) {
-                    for (var _i = 0; _i < messages.length; _i++) {
-                        var message = messages[_i];
-                        _this._stats.msgReceived++;
-                        handler(message);
-                    }
-                });
-            });
+            _this._msgHandlers.push(handler);
+        };
+        this._handleMessagesBuffer = function (data) {
+            var messages;
+            try {
+                messages = JSON.parse(data);
+            }
+            catch (e) { }
+            for (var _i = 0; _i < messages.length; _i++) {
+                var message = messages[_i];
+                _this._stats.msgReceived++;
+                for (var _a = 0, _b = _this._msgHandlers; _a < _b.length; _a++) {
+                    var handler = _b[_a];
+                    handler(message);
+                }
+            }
         };
         this._waitInit = function (fct) {
             return _this._initPromise.then(function () {
@@ -23434,13 +26142,22 @@ var ChatUp = (function () {
                 });
             });
         };
-        this._connectSocket = function (workerInfos) {
+        this._connectSocket = function (worker) {
+            _this._pushStream = new PushStream.PushStream({
+                host: url.parse(worker.host).hostname,
+                port: 42632,
+                modes: 'websocket|eventsource|longpolling'
+            });
+            _this._pushStream.onmessage = _this._handleMessagesBuffer;
+            _this._pushStream.addChannel(_this._conf.room);
+            _this._pushStream.connect();
             return new Promise(function (resolve, reject) {
-                _this._socket = io(workerInfos.host + ':' + workerInfos.port, _this._conf.socketIO);
+                _this._socket = io(worker.host, _this._conf.socketIO);
                 _this._socket.on('connect', function () {
                     resolve();
                 });
                 _this._socket.on('connect_error', function (err) {
+                    console.error('Couldn\'t connect to socket, retrying', err);
                     _.after(2, function () {
                         reject(err);
                     });
@@ -23461,6 +26178,7 @@ var ChatUp = (function () {
         this._conf = conf;
         _.defaults(conf, ChatUp.defaultConf);
         _.defaults(conf.socketIO, ChatUp.defaultConf.socketIO);
+        this._msgHandlers = [];
         this._stats = {
             msgSent: 0,
             msgReceived: 0,
@@ -23486,5 +26204,5 @@ var ChatUp = (function () {
 })();
 module.exports = ChatUp;
 
-},{"es6-shim":1,"lodash":2,"performance-now":3,"socket.io-client":4,"superagent":54}]},{},[58])(58)
+},{"./nginx-pushstream.js":1,"es6-shim":2,"lodash":3,"performance-now":4,"socket.io-client":5,"superagent":55,"url":64}]},{},[65])(65)
 });

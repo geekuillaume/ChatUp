@@ -3,16 +3,19 @@ var io = require('socket.io-client');
 var _ = require('lodash');
 var es6shim = require('es6-shim');
 var now = require('performance-now');
+var PushStream = require('./nginx-pushstream.js');
+var url = require('url');
 var ChatUp = (function () {
     function ChatUp(conf) {
         var _this = this;
         this.init = function () {
             if (_this._initPromise)
                 return _this._initPromise;
-            return _this._initPromise = _this._getChatWorker()
-                .then(_this._connectSocket)
-                .then(_this._authenticate)
-                .then(_this._join)
+            var promise = _this._initPromise = _this._getChatWorker().then(_this._connectSocket);
+            if (_this._conf.userInfo) {
+                promise = promise.then(_this._authenticate);
+            }
+            return promise.then(_this._join)
                 .then(function () {
                 return _this;
             });
@@ -32,15 +35,22 @@ var ChatUp = (function () {
             });
         };
         this.onMsg = function (handler) {
-            _this._waitInit(function () {
-                _this._socket.on('msg', function (messages) {
-                    for (var _i = 0; _i < messages.length; _i++) {
-                        var message = messages[_i];
-                        _this._stats.msgReceived++;
-                        handler(message);
-                    }
-                });
-            });
+            _this._msgHandlers.push(handler);
+        };
+        this._handleMessagesBuffer = function (data) {
+            var messages;
+            try {
+                messages = JSON.parse(data);
+            }
+            catch (e) { }
+            for (var _i = 0; _i < messages.length; _i++) {
+                var message = messages[_i];
+                _this._stats.msgReceived++;
+                for (var _a = 0, _b = _this._msgHandlers; _a < _b.length; _a++) {
+                    var handler = _b[_a];
+                    handler(message);
+                }
+            }
         };
         this._waitInit = function (fct) {
             return _this._initPromise.then(function () {
@@ -80,6 +90,14 @@ var ChatUp = (function () {
             });
         };
         this._connectSocket = function (worker) {
+            _this._pushStream = new PushStream.PushStream({
+                host: url.parse(worker.host).hostname,
+                port: _this._conf.nginxPort,
+                modes: 'websocket|eventsource|longpolling'
+            });
+            _this._pushStream.onmessage = _this._handleMessagesBuffer;
+            _this._pushStream.addChannel(_this._conf.room);
+            _this._pushStream.connect();
             return new Promise(function (resolve, reject) {
                 _this._socket = io(worker.host, _this._conf.socketIO);
                 _this._socket.on('connect', function () {
@@ -107,6 +125,7 @@ var ChatUp = (function () {
         this._conf = conf;
         _.defaults(conf, ChatUp.defaultConf);
         _.defaults(conf.socketIO, ChatUp.defaultConf.socketIO);
+        this._msgHandlers = [];
         this._stats = {
             msgSent: 0,
             msgReceived: 0,
@@ -126,7 +145,8 @@ var ChatUp = (function () {
         room: 'defaultRoom',
         socketIO: {
             timeout: 5000
-        }
+        },
+        nginxPort: 42632
     };
     return ChatUp;
 })();

@@ -33,7 +33,7 @@ var WSHandler = (function () {
         this._io = socketio(this._app, {
             serverClient: false
         });
-        this._store = new store_1.Store(this);
+        this._store = new store_1.Store(this._conf);
         this._io.on('connection', this._onConnection);
         this._sockets = [];
         this._initStatsReporting();
