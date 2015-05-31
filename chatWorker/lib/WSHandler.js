@@ -71,13 +71,8 @@ var ChatUpSocket = (function () {
                 return cb({ status: 'error', err: "Already in a room" });
             }
             _this._room = _this._parent._store.joinRoom(msg.room);
-            _this._room.onMsg(_this._onMsg);
             _this._debug('Joined room %s', _this._room.name);
             cb('ok');
-        };
-        this._onMsg = function (messages) {
-            _this._debug('Sending %s messages', messages.length);
-            _this._socket.emit('msg', messages);
         };
         this._onSay = function (msg, cb) {
             if (!_.isObject(msg) || !_.isString(msg.msg)) {

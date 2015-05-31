@@ -99,14 +99,8 @@ class ChatUpSocket {
       return cb({status: 'error', err: "Already in a room"});
     }
     this._room = this._parent._store.joinRoom(msg.room);
-    this._room.onMsg(this._onMsg);
     this._debug('Joined room %s', this._room.name);
     cb('ok');
-  }
-
-  _onMsg = (messages) => {
-    this._debug('Sending %s messages', messages.length);
-    this._socket.emit('msg', messages);
   }
 
   _onSay = (msg, cb) => {

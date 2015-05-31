@@ -19,22 +19,27 @@ export class Store {
 
   _agent: any;
 
-  constructor(conf: ChatWorkerConf, master = false) {
+  _isMaster: Boolean;
+
+  constructor(conf: ChatWorkerConf, isMaster = false) {
+    this._isMaster = isMaster;
     this._debug = debugFactory('ChatUp:Store:' + process.pid);
     this._debug('Store created');
     this._conf = conf;
-    this._pubClient = redis.createClient(this._conf.redis.port, this._conf.redis.host);
-    this._subClient = redis.createClient(this._conf.redis.port, this._conf.redis.host);
     this._rooms = {};
 
-    if (master) {
-      this._subClient.psubscribe('room*');
+    if (isMaster) {
+      this._subClient = redis.createClient(this._conf.redis.port, this._conf.redis.host);
+      this._subClient.psubscribe('r_*');
       this._agent = new Agent({});
+      this._subClient.on('pmessage', this._treatMessage);
+    } else {
+      this._pubClient = redis.createClient(this._conf.redis.port, this._conf.redis.host);
     }
-    this._subClient.on('pmessage', this._treatMessage);
   }
 
-  _treatMessage = (pattern, roomName, message) => {
+  _treatMessage = (pattern, channelName, message) => {
+    var roomName = channelName.slice(2);
     this._debug('Got from Redis on room %s', roomName);
     var room = this._rooms[roomName];
     if (!room) {
@@ -56,7 +61,7 @@ export class Store {
 
   _pub = (roomName, message) => {
     this._debug("Sending on redis in room %s", roomName);
-    this._pubClient.publish(roomName, JSON.stringify(message));
+    this._pubClient.publish("r_" + roomName, JSON.stringify(message));
   }
 
 }
@@ -78,7 +83,9 @@ export class Room extends EventEmitter {
     this._joined = 0;
     this._messageBuffer = [];
     this._handlers = [];
-    setInterval(this._drain, this._parent._conf.msgBufferDelay);
+    if (parent._isMaster) {
+      setInterval(this._drain, this._parent._conf.msgBufferDelay);
+    }
   }
 
   say = (message: ChatMessage) => {
@@ -106,7 +113,6 @@ export class Room extends EventEmitter {
   }
 
   onMsg = (handler: Function) => {
-    this._debug('adding:', handler);
     this._handlers.push(handler);
   }
 

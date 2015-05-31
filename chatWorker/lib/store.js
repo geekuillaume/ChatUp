@@ -11,10 +11,11 @@ var superagent = require('superagent');
 var Agent = require('agentkeepalive');
 var debugFactory = require('debug');
 var Store = (function () {
-    function Store(conf, master) {
+    function Store(conf, isMaster) {
         var _this = this;
-        if (master === void 0) { master = false; }
-        this._treatMessage = function (pattern, roomName, message) {
+        if (isMaster === void 0) { isMaster = false; }
+        this._treatMessage = function (pattern, channelName, message) {
+            var roomName = channelName.slice(2);
             _this._debug('Got from Redis on room %s', roomName);
             var room = _this._rooms[roomName];
             if (!room) {
@@ -34,19 +35,22 @@ var Store = (function () {
         };
         this._pub = function (roomName, message) {
             _this._debug("Sending on redis in room %s", roomName);
-            _this._pubClient.publish(roomName, JSON.stringify(message));
+            _this._pubClient.publish("r_" + roomName, JSON.stringify(message));
         };
+        this._isMaster = isMaster;
         this._debug = debugFactory('ChatUp:Store:' + process.pid);
         this._debug('Store created');
         this._conf = conf;
-        this._pubClient = redis.createClient(this._conf.redis.port, this._conf.redis.host);
-        this._subClient = redis.createClient(this._conf.redis.port, this._conf.redis.host);
         this._rooms = {};
-        if (master) {
-            this._subClient.psubscribe('room*');
+        if (isMaster) {
+            this._subClient = redis.createClient(this._conf.redis.port, this._conf.redis.host);
+            this._subClient.psubscribe('r_*');
             this._agent = new Agent({});
+            this._subClient.on('pmessage', this._treatMessage);
         }
-        this._subClient.on('pmessage', this._treatMessage);
+        else {
+            this._pubClient = redis.createClient(this._conf.redis.port, this._conf.redis.host);
+        }
     }
     return Store;
 })();
@@ -75,7 +79,6 @@ var Room = (function (_super) {
             }
         };
         this.onMsg = function (handler) {
-            _this._debug('adding:', handler);
             _this._handlers.push(handler);
         };
         this._pushMessage = function (rawMessage) {
@@ -107,7 +110,9 @@ var Room = (function (_super) {
         this._joined = 0;
         this._messageBuffer = [];
         this._handlers = [];
-        setInterval(this._drain, this._parent._conf.msgBufferDelay);
+        if (parent._isMaster) {
+            setInterval(this._drain, this._parent._conf.msgBufferDelay);
+        }
     }
     return Room;
 })(events_1.EventEmitter);
