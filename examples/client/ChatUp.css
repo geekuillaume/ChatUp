@@ -6,9 +6,13 @@
 .ChatUpStatus {
   font-size: 10px;
   color: #737373;
+  flex-shrink: 0;
 }
 .ChatUpStatus span {
   display: block;
+}
+.ChatUpFormContainer {
+  flex-shrink: 0;
 }
 .ChatUpForm {
   display: flex;

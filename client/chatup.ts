@@ -249,11 +249,15 @@ export class ChatUp {
   }
 
   _onMsg = (messageData) => {
+    var atBottom = this._messagesContainer.scrollTop === this._messagesContainer.scrollHeight - this._messagesContainer.offsetHeight
     this._messagesContainer.innerHTML += [
       '<div class="ChatUpMessage">',
         '<p class="ChatUpMessageSender">' + messageData.user.name + '</p>',
         '<p class="ChatUpMessageContent">' + messageData.msg + '</p>',
       '</div>'].join('\n');
+    if (atBottom) {
+      this._messagesContainer.scrollTop = Infinity
+    }
   }
 
   authenticate(userInfo):Promise<any> {

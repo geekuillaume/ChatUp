@@ -182,11 +182,15 @@ var ChatUp = (function () {
             _this._messageInput.value = "";
         };
         this._onMsg = function (messageData) {
+            var atBottom = _this._messagesContainer.scrollTop === _this._messagesContainer.scrollHeight - _this._messagesContainer.offsetHeight;
             _this._messagesContainer.innerHTML += [
                 '<div class="ChatUpMessage">',
                 '<p class="ChatUpMessageSender">' + messageData.user.name + '</p>',
                 '<p class="ChatUpMessageContent">' + messageData.msg + '</p>',
                 '</div>'].join('\n');
+            if (atBottom) {
+                _this._messagesContainer.scrollTop = Infinity;
+            }
         };
         this._el = el;
         this._conf = conf;
