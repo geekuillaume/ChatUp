@@ -3,11 +3,20 @@
   <head>
     <title>ChatUp</title>
     <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/lodash.js/3.7.0/lodash.min.js"></script>
-
     <script type="text/javascript" src="chatuplib.js"></script>
     <script type="text/javascript" src="script.js"></script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="ChatUp.css" />
+    <style>
+      .ChatUpTestContainer {
+        height: 300px;
+      }
+    </style>
   </head>
   <body>
-    <h1>ChatUp</h1>
+    <div class="container" id="main">
+      <h1>ChatUp</h1>
+      <button class="btn btn-primary" id="addChatUpInstance">Add ChatUp Instance</button>
+    </div>
   </body>
 </html>

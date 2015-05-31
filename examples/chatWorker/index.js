@@ -8,7 +8,7 @@ var worker = new ChatUp.ChatWorker({
   // port: 8001,
   hostname: "127.0.0.1",
   origins: '*',
-  threads: 4,
+  threads: 1,
   sticky: false // For benchmark purpose, we don't want to have sticky sessions
 });
 

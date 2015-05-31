@@ -3,21 +3,27 @@ var io = require('socket.io-client');
 var _ = require('lodash');
 var es6shim = require('es6-shim');
 var now = require('performance-now');
-var PushStream = require('./nginx-pushstream.js');
+var PushStream = require('./lib/nginx-pushstream.js');
 var url = require('url');
-var ChatUp = (function () {
-    function ChatUp(conf) {
+var helpers_1 = require('./lib/helpers');
+var ChatUpProtocol = (function () {
+    function ChatUpProtocol(conf) {
         var _this = this;
         this.init = function () {
             if (_this._initPromise)
                 return _this._initPromise;
-            var promise = _this._initPromise = _this._getChatWorker().then(_this._connectSocket);
-            if (_this._conf.userInfo) {
-                promise = promise.then(_this._authenticate);
-            }
-            return promise.then(_this._join)
+            _this._status = 'connecting';
+            return _this._initPromise = _this._getChatWorker()
+                .then(_this._connectSub)
                 .then(function () {
+                _this._status = 'connected';
                 return _this;
+            });
+        };
+        this.authenticate = function (userInfo) {
+            _this._conf.userInfo = userInfo;
+            return _this._waitInit(function () {
+                return _this._connectPub();
             });
         };
         this.say = function (message) {
@@ -25,7 +31,7 @@ var ChatUp = (function () {
                 return new Promise(function (resolve, reject) {
                     _this._stats.msgSent++;
                     var start = now();
-                    _this._socket.emit('say', { msg: message }, function (response) {
+                    _this._pubSocket.emit('say', { msg: message }, function (response) {
                         _this._stats.latency = now() - start;
                         if (!_this._isCorrectReponse(response, reject))
                             return;
@@ -71,43 +77,46 @@ var ChatUp = (function () {
             }
             return true;
         };
-        this._authenticate = function () {
+        this._connectSub = function () {
             return new Promise(function (resolve, reject) {
-                _this._socket.emit('auth', _this._conf.userInfo, function (response) {
-                    if (!_this._isCorrectReponse(response, reject))
-                        return;
-                    return resolve();
+                _this._pushStream = new PushStream.PushStream({
+                    host: url.parse(_this._worker.host).hostname,
+                    port: _this._conf.nginxPort,
+                    modes: 'websocket|eventsource|longpolling'
                 });
+                _this._pushStream.onmessage = _this._handleMessagesBuffer;
+                _this._pushStream.addChannel(_this._conf.room);
+                _this._pushStream.onstatuschange = function (status) {
+                    if (status === PushStream.PushStream.OPEN) {
+                        return resolve();
+                    }
+                };
+                _this._pushStream.onerror = function (err) {
+                    return reject(err);
+                };
+                _this._pushStream.connect();
             });
         };
-        this._join = function () {
+        this._connectPub = function () {
             return new Promise(function (resolve, reject) {
-                _this._socket.emit('join', { room: _this._conf.room }, function (response) {
-                    if (!_this._isCorrectReponse(response, reject))
-                        return;
-                    return resolve();
-                });
-            });
-        };
-        this._connectSocket = function (worker) {
-            _this._pushStream = new PushStream.PushStream({
-                host: url.parse(worker.host).hostname,
-                port: _this._conf.nginxPort,
-                modes: 'websocket|eventsource|longpolling'
-            });
-            _this._pushStream.onmessage = _this._handleMessagesBuffer;
-            _this._pushStream.addChannel(_this._conf.room);
-            _this._pushStream.connect();
-            return new Promise(function (resolve, reject) {
-                _this._socket = io(worker.host, _this._conf.socketIO);
-                _this._socket.on('connect', function () {
-                    resolve();
-                });
-                _this._socket.on('connect_error', function (err) {
-                    console.error('Couldn\'t connect to socket, retrying', err);
-                    _.after(2, function () {
-                        reject(err);
+                _this._pubSocket = io(_this._worker.host, _this._conf.socketIO);
+                _this._pubSocket.on('connect', function () {
+                    _this._pubSocket.emit('auth', _this._conf.userInfo, function (response) {
+                        if (!_this._isCorrectReponse(response, reject))
+                            return;
+                        _this._pubSocket.emit('join', { room: _this._conf.room }, function (response) {
+                            if (!_this._isCorrectReponse(response, reject))
+                                return;
+                            _this._status = 'authenticated';
+                            return resolve();
+                        });
                     });
+                });
+                var rejectFct = _.after(2, function () {
+                    reject(new Error('Couldn\'t connect to websocket pub'));
+                });
+                _this._pubSocket.on('connect_error', function (err) {
+                    rejectFct();
                 });
             });
         };
@@ -118,36 +127,86 @@ var ChatUp = (function () {
                     if (err) {
                         return reject(err);
                     }
+                    _this._worker = res.body;
                     resolve(res.body);
                 });
             });
         };
         this._conf = conf;
-        _.defaults(conf, ChatUp.defaultConf);
-        _.defaults(conf.socketIO, ChatUp.defaultConf.socketIO);
+        _.defaults(conf, ChatUpProtocol.defaultConf);
+        _.defaults(conf.socketIO, ChatUpProtocol.defaultConf.socketIO);
         this._msgHandlers = [];
         this._stats = {
             msgSent: 0,
             msgReceived: 0,
             latency: Infinity
         };
+        this._status = 'disconnected';
     }
-    Object.defineProperty(ChatUp.prototype, "stats", {
+    Object.defineProperty(ChatUpProtocol.prototype, "stats", {
         get: function () {
             return this._stats;
         },
         enumerable: true,
         configurable: true
     });
-    ChatUp.defaultConf = {
+    ChatUpProtocol.defaultConf = {
         dispatcherURL: '/dispatcher',
         userInfo: {},
-        room: 'defaultRoom',
+        room: 'roomDefault',
         socketIO: {
             timeout: 5000
         },
         nginxPort: 42632
     };
+    return ChatUpProtocol;
+})();
+exports.ChatUpProtocol = ChatUpProtocol;
+var ChatUp = (function () {
+    function ChatUp(el, conf) {
+        var _this = this;
+        this._initHTML = function () {
+            _this._el.innerHTML = ChatUp._template;
+            _this._statusTextEl = helpers_1.findClass(_this._el, 'ChatUpStatusText');
+            _this._messageForm = helpers_1.findClass(_this._el, 'ChatUpForm');
+            _this._messageInput = helpers_1.findClass(_this._el, 'ChatUpInput');
+            _this._messagesContainer = helpers_1.findClass(_this._el, 'ChatUpMessages');
+            _this._messageForm.onsubmit = _this._formSubmit;
+        };
+        this._formSubmit = function (e) {
+            e.preventDefault();
+            if (_this._messageInput.value.length == 0) {
+                return;
+            }
+            _this._protocol.say(_this._messageInput.value).catch(function (err) { console.error(err); });
+            _this._messageInput.value = "";
+        };
+        this._onMsg = function (messageData) {
+            _this._messagesContainer.innerHTML += [
+                '<div class="ChatUpMessage">',
+                '<p class="ChatUpMessageSender">' + messageData.user.name + '</p>',
+                '<p class="ChatUpMessageContent">' + messageData.msg + '</p>',
+                '</div>'].join('\n');
+        };
+        this._el = el;
+        this._conf = conf;
+        this._protocol = new ChatUpProtocol(this._conf);
+        this._initHTML();
+    }
+    ChatUp.prototype.authenticate = function (userInfo) {
+        var _this = this;
+        return this._protocol.authenticate(userInfo).then(function () {
+            _this._statusTextEl.innerText = 'Connected as ' + userInfo.name + ' to ' + _this._conf.room + ' on server: ' + _this._protocol._worker.host;
+        });
+    };
+    ChatUp.prototype.init = function () {
+        var _this = this;
+        return this._protocol.init().then(function () {
+            _this._statusTextEl.innerText = 'Connected to ' + _this._conf.room + ' on server ' + _this._protocol._worker.host;
+            _this._protocol.onMsg(_this._onMsg);
+        });
+    };
+    ChatUp._template = "\n    <div class=\"ChatUpContainer\">\n      <div class=\"ChatUpStatus\">Status: <span class=\"ChatUpStatusText\">Disconnected</span></div>\n      <div class=\"ChatUpMessages\"></div>\n      <div class=\"ChatUpFormContainer\">\n        <form class=\"ChatUpForm\">\n          <input type=\"text\" required=\"true\" class=\"ChatUpInput\">\n          <button class=\"ChatUpFormButton\">Send</button>\n        </form>\n      </div>\n    </div>\n  ";
     return ChatUp;
 })();
-module.exports = ChatUp;
+exports.ChatUp = ChatUp;

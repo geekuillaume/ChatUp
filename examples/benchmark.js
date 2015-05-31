@@ -49,7 +49,7 @@ function benchmark(options) {
     for (var i = 0; i < n; i++) {
       if (promises.length >= options.connexions)
         return;
-      promises.push(new ChatUp({
+      promises.push(new ChatUp.ChatUpProtocol({
         dispatcherURL: options.dispatcherURL,
         userInfo: {name: randomId(20)},
         room: _.sample(rooms),

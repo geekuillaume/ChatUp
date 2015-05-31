@@ -38,7 +38,8 @@ if (typeof window === 'undefined') {
   var window = {
     location: {},
     escape: function(text) {return text},
-    WebSocket: require('ws')
+    WebSocket: require('ws'),
+    setTimeout: setTimeout
   };
 }
 if (typeof document === 'undefined') {

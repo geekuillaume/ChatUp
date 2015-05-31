@@ -1,0 +1,39 @@
+.ChatUpContainer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.ChatUpStatus {
+  font-size: 10px;
+  color: #737373;
+}
+.ChatUpStatus span {
+  display: block;
+}
+.ChatUpForm {
+  display: flex;
+}
+.ChatUpInput {
+  flex-grow: 1;
+}
+.ChatUpFormButton {
+  margin-left: 2px;
+  background-color: white;
+  border: 1px solid #868686;
+}
+
+.ChatUpMessages {
+  flex-grow: 1;
+  overflow-y: scroll;
+}
+.ChatUpMessage {
+  border-bottom: 1px solid #cecece;
+}
+.ChatUpMessage .ChatUpMessageSender {
+  font-size: 11px;
+  color: #737373;
+  margin: 0;
+}
+.ChatUpMessage .ChatUpMessageContent {
+  margin-bottom: 0;
+}

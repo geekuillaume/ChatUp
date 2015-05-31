@@ -1,56 +1,61 @@
-var argv = {};
+function findClass(element,className) {
+	var foundElement=null,found;
+	function recurse(element,className,found) {
+		for(var i=0;i<element.childNodes.length&&!found;i++) {
+			var el=element.childNodes[i];
+			var classes=el.className!==undefined? el.className.split(" "):[];
+			for(var j=0,jl=classes.length;j<jl;j++) {
+				if(classes[j]==className) {
+					found=true;
+					foundElement=element.childNodes[i];
+					break;
+				}
+			}
+			if(found)
+				break;
+			recurse(element.childNodes[i],className,found);
+		}
+	}
+	recurse(element,className,false);
+	return foundElement;
+}
 
-var benchmarkOptions = {
-  messageLength: argv.messageLength || 120,
-  interval: argv.interval || 100,
-  logInterval: argv.logInterval || 2000,
-  connexions: (argv.connexions || 10) / (argv.t || 1),
-  roomsNumber: argv.rooms || 1,
-  threads: (argv.t || 1),
-  dispatcherURL: 'http://localhost:8000/'
-};
+function addChatUp() {
+  var element = document.createElement('div');
+  element.innerHTML = [
+    '<div class="ChatUpTest col-md-3">',
+    '  <div class="ChatUpTestRoom">',
+    '    <div>',
+    '      <input type="text" placeholder="Room Name" class="ChatUpTestRoomInput" value="coucou"> <button class="ChatUpTestJoin">Join room</button>',
+    '    </div>',
+    '    <div>',
+    '      <input type="text" placeholder="Your Name" class="ChatUpTestNameInput" value="TestUser"> <button class="ChatUpTestAuthenticate">Authenticate</button>',
+    '    </div>',
+    '  </div>',
+    '  <div class="ChatUpTestContainer"></div>',
+    '</div>'].join('\n');
+  document.getElementById('main').appendChild(element);
+  var roomInput = findClass(element, 'ChatUpTestRoomInput');
+  var joinButton = findClass(element, 'ChatUpTestJoin');
+  var nameInput = findClass(element, 'ChatUpTestNameInput');
+  var authenticateButton = findClass(element, 'ChatUpTestAuthenticate');
 
-benchmark(benchmarkOptions);
+  var chatup;
 
-function benchmark(options) {
-  var rooms = _.map(_.range(options.roomsNumber), function(x, i) {return 'room' + i;});
-  Promise.all(_.map(_.range(options.connexions), function() {
-    return new ChatUp({
-      dispatcherURL: options.dispatcherURL,
-      userInfo: {name: randomId(20)},
-      room: _.sample(rooms),
-      socketIO: {transports: ['websocket'], multiplex: false}
-    }).init();
-  })).then(function(sockets) {
-    console.log('%s workers started and connected', sockets.length);
-    _.each(sockets, function(socket, i) {
-      socket.onMsg(_.noop);
-      setTimeout(function() {
-        var sendMessage = function() {
-          socket.say(randomId(options.messageLength));
-        };
-        sendMessage();
-        setInterval(sendMessage, options.interval);
-      }, i * (options.interval / options.connexions));
+  joinButton.onclick = function() {
+    chatup = new ChatUp.ChatUp(findClass(element, 'ChatUpTestContainer'), {
+      dispatcherURL: 'http://localhost:8000',
+      room: roomInput.value,
+      socketIO: {transports: ['websocket'], multiplex: false} // Disabling multiplex to force multiple websockets and not reusing an already connected one
     });
-
-    setInterval(function() {
-
-      var stats = _(sockets).map('stats').reduce(_.merge);
-      console.log('Sent: %s, Received: %s', stats.msgSent, stats.msgReceived);
-
-    }, options.logInterval);
-
-  }).catch(function(err) {
-    console.error(err);
-  });
+    chatup.init();
+  };
+  authenticateButton.onclick = function() {
+    chatup.authenticate({name: nameInput.value});
+  };
 }
 
-function randomId(length) {
-  var text = "";
-  var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-
-  for(var i = 0; i < length; i++)
-    text += possible.charAt(Math.floor(Math.random() * possible.length));
-  return text;
-}
+document.addEventListener("DOMContentLoaded", function(event) {
+  addChatUp();
+  document.getElementById('addChatUpInstance').onclick = addChatUp;
+});
