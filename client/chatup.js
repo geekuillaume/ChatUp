@@ -9,18 +9,37 @@ var helpers_1 = require('./lib/helpers');
 var ChatUpProtocol = (function () {
     function ChatUpProtocol(conf) {
         var _this = this;
+        this._msgHandlers = [];
+        this._stats = {
+            msgSent: 0,
+            msgReceived: 0,
+            latency: Infinity
+        };
+        this._status = 'disconnected';
+        this._statusChangeHandler = [];
+        this.onStatusChange = function (handler) {
+            _this._statusChangeHandler.push(handler);
+        };
         this.init = function () {
-            if (_this._initPromise)
+            if (_this._initPromise && !_this._error)
                 return _this._initPromise;
-            _this._status = 'connecting';
-            return _this._initPromise = _this._getChatWorker()
+            if (!_this._error)
+                _this.status = 'connecting';
+            _this._initPromise = _this._getChatWorker()
                 .then(_this._connectSub)
                 .then(function () {
-                _this._status = 'connected';
+                _this.status = 'connected';
+                if (_this._conf.userInfo)
+                    return _this._connectPub();
                 return _this;
+            }).catch(function (err) {
+                console.error('Couldn\'t connect, retrying');
+                return _this.init();
             });
+            return _this._initPromise;
         };
         this.authenticate = function (userInfo) {
+            if (userInfo === void 0) { userInfo = _this._conf.userInfo; }
             _this._conf.userInfo = userInfo;
             return _this._waitInit(function () {
                 return _this._connectPub();
@@ -92,7 +111,7 @@ var ChatUpProtocol = (function () {
                     }
                 };
                 _this._pushStream.onerror = function (err) {
-                    return reject(err);
+                    console.log('Error');
                 };
                 _this._pushStream.connect();
             });
@@ -107,25 +126,36 @@ var ChatUpProtocol = (function () {
                         _this._pubSocket.emit('join', { room: _this._conf.room }, function (response) {
                             if (!_this._isCorrectReponse(response, reject))
                                 return;
-                            _this._status = 'authenticated';
+                            _this.status = 'authenticated';
                             return resolve();
                         });
                     });
                 });
-                var rejectFct = _.after(2, function () {
+                var rejectFct = _.after(2, function (err) {
                     reject(new Error('Couldn\'t connect to websocket pub'));
                 });
                 _this._pubSocket.on('connect_error', function (err) {
-                    rejectFct();
+                    _this.status = 'pubConnectError';
+                    rejectFct(err);
+                });
+                _this._pubSocket.on('reconnect_failed', function () {
+                    _this.status = 'workerSwitch';
+                    _this._error = { type: 'workerPubConnect', worker: _this._worker };
+                    _this.init();
                 });
             });
         };
         this._getChatWorker = function () {
             return new Promise(function (resolve, reject) {
+                _this.status = 'gettingWorker';
                 request.post(_this._conf.dispatcherURL)
                     .end(function (err, res) {
                     if (err) {
-                        return reject(err);
+                        if (err.status === 418)
+                            _this.status = 'noWorker';
+                        else
+                            _this.status = 'dispatcherError';
+                        return resolve(helpers_1.timeoutPromise(2000).then(_this._getChatWorker));
                     }
                     _this._worker = res.body;
                     resolve(res.body);
@@ -135,14 +165,21 @@ var ChatUpProtocol = (function () {
         this._conf = conf;
         _.defaults(conf, ChatUpProtocol.defaultConf);
         _.defaults(conf.socketIO, ChatUpProtocol.defaultConf.socketIO);
-        this._msgHandlers = [];
-        this._stats = {
-            msgSent: 0,
-            msgReceived: 0,
-            latency: Infinity
-        };
-        this._status = 'disconnected';
     }
+    Object.defineProperty(ChatUpProtocol.prototype, "status", {
+        get: function () {
+            return this._status;
+        },
+        set: function (status) {
+            this._status = status;
+            for (var _i = 0, _a = this._statusChangeHandler; _i < _a.length; _i++) {
+                var handler = _a[_i];
+                handler(status);
+            }
+        },
+        enumerable: true,
+        configurable: true
+    });
     Object.defineProperty(ChatUpProtocol.prototype, "stats", {
         get: function () {
             return this._stats;
@@ -152,10 +189,10 @@ var ChatUpProtocol = (function () {
     });
     ChatUpProtocol.defaultConf = {
         dispatcherURL: '/dispatcher',
-        userInfo: {},
         room: 'roomDefault',
         socketIO: {
-            timeout: 5000
+            timeout: 5000,
+            reconnectionAttempts: 3
         },
         nginxPort: 42632
     };
@@ -165,6 +202,29 @@ exports.ChatUpProtocol = ChatUpProtocol;
 var ChatUp = (function () {
     function ChatUp(el, conf) {
         var _this = this;
+        this._protocolStatusChange = function (status) {
+            if (status === 'connected') {
+                _this._statusTextEl.innerText = 'Connected to ' + _this._conf.room + ' on server ' + _this._protocol._worker.host;
+            }
+            else if (status === 'authenticated') {
+                _this._statusTextEl.innerText = 'Connected as ' + _this._conf.userInfo.name + ' to ' + _this._conf.room + ' on server: ' + _this._protocol._worker.host;
+            }
+            else if (status === 'gettingWorker') {
+                _this._statusTextEl.innerText = 'Getting worker from dispatcher';
+            }
+            else if (status === 'pubConnectError') {
+                _this._statusTextEl.innerText = 'Error connecting to worker, retrying...';
+            }
+            else if (status === 'workerSwitch') {
+                _this._statusTextEl.innerText = 'Getting another worker';
+            }
+            else if (status === 'noWorker') {
+                _this._statusTextEl.innerText = 'No worker available, retrying...';
+            }
+            else if (status === 'dispatcherError') {
+                _this._statusTextEl.innerText = 'Error with dispatcher, retrying...';
+            }
+        };
         this._initHTML = function () {
             _this._el.innerHTML = ChatUp._template;
             _this._statusTextEl = helpers_1.findClass(_this._el, 'ChatUpStatusText');
@@ -195,20 +255,15 @@ var ChatUp = (function () {
         this._el = el;
         this._conf = conf;
         this._protocol = new ChatUpProtocol(this._conf);
+        this._protocol.onStatusChange(this._protocolStatusChange);
         this._initHTML();
     }
     ChatUp.prototype.authenticate = function (userInfo) {
-        var _this = this;
-        return this._protocol.authenticate(userInfo).then(function () {
-            _this._statusTextEl.innerText = 'Connected as ' + userInfo.name + ' to ' + _this._conf.room + ' on server: ' + _this._protocol._worker.host;
-        });
+        this._conf.userInfo = userInfo;
+        return this._protocol.authenticate(userInfo);
     };
     ChatUp.prototype.init = function () {
-        var _this = this;
-        return this._protocol.init().then(function () {
-            _this._statusTextEl.innerText = 'Connected to ' + _this._conf.room + ' on server ' + _this._protocol._worker.host;
-            _this._protocol.onMsg(_this._onMsg);
-        });
+        return this._protocol.init();
     };
     ChatUp._template = "\n    <div class=\"ChatUpContainer\">\n      <div class=\"ChatUpStatus\">Status: <span class=\"ChatUpStatusText\">Disconnected</span></div>\n      <div class=\"ChatUpMessages\"></div>\n      <div class=\"ChatUpFormContainer\">\n        <form class=\"ChatUpForm\">\n          <input type=\"text\" required=\"true\" class=\"ChatUpInput\">\n          <button class=\"ChatUpFormButton\">Send</button>\n        </form>\n      </div>\n    </div>\n  ";
     return ChatUp;

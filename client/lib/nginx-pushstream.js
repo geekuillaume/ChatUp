@@ -565,7 +565,7 @@ var linker = function(method, instance) {
 
 var clearTimer = function(timer) {
   if (timer) {
-    window.clearTimeout(timer);
+    clearTimeout(timer);
   }
   return null;
 };
@@ -1212,7 +1212,7 @@ PushStream.prototype = {
   _reconnect: function(timeout) {
     if (this._keepConnected && !this._reconnecttimer && (this.readyState !== PushStream.CONNECTING)) {
       Log4js.info("trying to reconnect in", timeout);
-      this._reconnecttimer = window.setTimeout(linker(this._connect, this), timeout);
+      this._reconnecttimer = setTimeout(linker(this._connect, this), timeout);
     }
   },
 

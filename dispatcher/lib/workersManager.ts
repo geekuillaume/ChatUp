@@ -42,19 +42,16 @@ class WorkersManager {
   getAvailable(): Promise<Dispatcher.workerHost> {
     return new Promise<Dispatcher.workerHost>((resolve, reject) => {
 
-      var worker = <Dispatcher.workerHost>_(this._workers).sortBy('connections').first();
-      console.log(_(this._workers).sortBy('connections').value());
+      var workers = <Dispatcher.workerHost[]>_(this._workers).sortBy('connections').value();
+      console.log(workers);
 
-      // var worker = <Dispatcher.workerHost>_.sample(this._workers);
-      debug('Found one worker at host %s', worker.host);
+      var worker = workers[0];
+
       if (worker) {
-        resolve(worker);
+        debug('Found one worker at host %s', worker.host);
+        worker.connections++;
       }
-      else {
-        reject(new Error('No worker available'));
-      }
-      worker.connections++;
-      console.log('worker.connections', worker.connections);
+      resolve(worker); // If no worker, we send nothing and the caller now that no worker is available
     });
   }
 };

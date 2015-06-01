@@ -20,3 +20,11 @@ function findClass(element, className) {
     return foundElement;
 }
 exports.findClass = findClass;
+function timeoutPromise(timeout) {
+    return new Promise(function (resolve, reject) {
+        setTimeout(function () {
+            resolve();
+        }, timeout);
+    });
+}
+exports.timeoutPromise = timeoutPromise;

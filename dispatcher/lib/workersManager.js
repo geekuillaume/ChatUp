@@ -35,17 +35,14 @@ var WorkersManager = (function () {
     WorkersManager.prototype.getAvailable = function () {
         var _this = this;
         return new Promise(function (resolve, reject) {
-            var worker = _(_this._workers).sortBy('connections').first();
-            console.log(_(_this._workers).sortBy('connections').value());
-            debug('Found one worker at host %s', worker.host);
+            var workers = _(_this._workers).sortBy('connections').value();
+            console.log(workers);
+            var worker = workers[0];
             if (worker) {
-                resolve(worker);
+                debug('Found one worker at host %s', worker.host);
+                worker.connections++;
             }
-            else {
-                reject(new Error('No worker available'));
-            }
-            worker.connections++;
-            console.log('worker.connections', worker.connections);
+            resolve(worker);
         });
     };
     return WorkersManager;

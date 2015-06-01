@@ -5,11 +5,11 @@ var es6shim = require('es6-shim');
 var now = require('performance-now');
 var PushStream = require('./lib/nginx-pushstream.js');
 import url = require('url');
-import {findClass} from './lib/helpers';
+import {findClass, timeoutPromise} from './lib/helpers';
 
 interface ChatUpConf {
   dispatcherURL: string;
-  userInfo: {};
+  userInfo?: any;
   room: string;
   socketIO: {};
   nginxPort: number;
@@ -25,10 +25,10 @@ export class ChatUpProtocol {
 
   static defaultConf: ChatUpConf = {
     dispatcherURL: '/dispatcher',
-    userInfo: {},
     room: 'roomDefault',
     socketIO: {
-      timeout: 5000
+      timeout: 5000,
+      reconnectionAttempts: 3
     },
     nginxPort: 42632
   }
@@ -37,50 +37,65 @@ export class ChatUpProtocol {
   _pubSocket: any;
   _pushStream: any;
   _worker: any;
-  _msgHandlers: Function[];
+  _msgHandlers: Function[] = [];
+  _error: {type: string; worker: Worker;};
 
   _initPromise: Promise<any>;
 
-  _stats: ChatUpStats;
+  _stats: ChatUpStats = {
+    msgSent: 0,
+    msgReceived: 0,
+    latency:Infinity
+  };
 
-  _status: string;
+  private _status: string = 'disconnected';
+  private _statusChangeHandler: Function[] = [];
+
+  get status():string {
+    return this._status;
+  }
+  set status(status: string) {
+    this._status = status;
+    for (let handler of this._statusChangeHandler) {
+      handler(status);
+    }
+  }
 
   constructor(conf: ChatUpConf) {
     this._conf = conf;
     _.defaults(conf, ChatUpProtocol.defaultConf);
     _.defaults(conf.socketIO, ChatUpProtocol.defaultConf.socketIO);
-    this._msgHandlers = [];
-    this._stats = {
-      msgSent: 0,
-      msgReceived: 0,
-      latency:Infinity
-    };
-    this._status = 'disconnected';
   }
 
   get stats() {
     return this._stats;
   }
 
-  init = ():Promise<any> => {
-    if (this._initPromise)
-      return this._initPromise;
-
-    this._status = 'connecting';
-
-    return this._initPromise = this._getChatWorker()
-      .then(this._connectSub)
-      .then(() => {
-        this._status = 'connected';
-        return this;
-      });
-
-    // if (this._conf.userInfo) { // Only authenticate if got userInfos
-    //   promise = promise.then(this._connectPub);
-    // }
+  onStatusChange = (handler: Function) => {
+    this._statusChangeHandler.push(handler);
   }
 
-  authenticate = (userInfo) => {
+  init = ():Promise<any> => {
+    if (this._initPromise && !this._error)
+      return this._initPromise;
+
+    if (!this._error)
+      this.status = 'connecting';
+    this._initPromise = this._getChatWorker()
+      .then(this._connectSub)
+      .then(() => {
+        this.status = 'connected';
+        if (this._conf.userInfo)
+          return this._connectPub();
+        return this;
+      }).catch((err) => {
+        console.error('Couldn\'t connect, retrying');
+        return this.init();
+      });
+    return this._initPromise;
+  }
+
+  authenticate = (userInfo = this._conf.userInfo) => {
     this._conf.userInfo = userInfo;
     return this._waitInit(() => {
       return this._connectPub();
@@ -155,7 +170,10 @@ export class ChatUpProtocol {
         }
       }
       this._pushStream.onerror = (err) => {
-        return reject(err);
+        // setTimeout(() => {
+        //   this._pushStream.connect();
+        // }, 2000);
+        console.log('Error');
       }
       this._pushStream.connect();
     });
@@ -171,26 +189,38 @@ export class ChatUpProtocol {
           this._pubSocket.emit('join', {room: this._conf.room}, (response) => {
             if (!this._isCorrectReponse(response, reject))
               return;
-            this._status = 'authenticated';
+            this.status = 'authenticated';
             return resolve();
           });
         });
       });
-      var rejectFct = _.after(2, function() {
+      var rejectFct = _.after(2, (err) => {
         reject(new Error('Couldn\'t connect to websocket pub'));
       });
       this._pubSocket.on('connect_error', (err) => {
-        rejectFct();
+        this.status = 'pubConnectError'
+        rejectFct(err);
       });
+      this._pubSocket.on('reconnect_failed', () => {
+        this.status = 'workerSwitch';
+        this._error = {type: 'workerPubConnect', worker: this._worker};
+        this.init();
+      })
     });
   }
 
   _getChatWorker = ():Promise<any> => {
     return new Promise((resolve, reject) => {
+      this.status = 'gettingWorker';
       request.post(this._conf.dispatcherURL)
       .end((err, res) => {
         if (err) {
-          return reject(err);
+          if (err.status === 418)
+            this.status = 'noWorker';
+          else
+            this.status = 'dispatcherError';
+          // Try again after 2s
+          return resolve(timeoutPromise(2000).then(this._getChatWorker));
         }
         this._worker = res.body;
         resolve(res.body);
@@ -227,7 +257,26 @@ export class ChatUp {
     this._el = el;
     this._conf = conf;
     this._protocol = new ChatUpProtocol(this._conf);
+    this._protocol.onStatusChange(this._protocolStatusChange);
     this._initHTML();
+  }
+
+  _protocolStatusChange = (status: string) => {
+    if (status === 'connected') {
+      this._statusTextEl.innerText = 'Connected to ' + this._conf.room + ' on server ' + this._protocol._worker.host;
+    } else if (status === 'authenticated') {
+      this._statusTextEl.innerText = 'Connected as ' + this._conf.userInfo.name + ' to ' + this._conf.room + ' on server: ' + this._protocol._worker.host;
+    } else if (status === 'gettingWorker') {
+      this._statusTextEl.innerText = 'Getting worker from dispatcher';
+    } else if (status === 'pubConnectError') {
+      this._statusTextEl.innerText = 'Error connecting to worker, retrying...';
+    } else if (status === 'workerSwitch') {
+      this._statusTextEl.innerText = 'Getting another worker';
+    } else if (status === 'noWorker') {
+      this._statusTextEl.innerText = 'No worker available, retrying...';
+    } else if (status === 'dispatcherError') {
+      this._statusTextEl.innerText = 'Error with dispatcher, retrying...';
+    }
   }
 
   _initHTML = () => {
@@ -261,16 +310,12 @@ export class ChatUp {
   }
 
   authenticate(userInfo):Promise<any> {
-    return this._protocol.authenticate(userInfo).then(() => {
-      this._statusTextEl.innerText = 'Connected as ' + userInfo.name + ' to ' + this._conf.room + ' on server: ' + this._protocol._worker.host;
-    });
+    this._conf.userInfo = userInfo;
+    return this._protocol.authenticate(userInfo);
   }
 
   init():Promise<any> {
-    return this._protocol.init().then(() => {
-      this._statusTextEl.innerText = 'Connected to ' + this._conf.room + ' on server ' + this._protocol._worker.host;
-      this._protocol.onMsg(this._onMsg);
-    });
+    return this._protocol.init();
   }
 
 }

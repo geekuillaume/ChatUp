@@ -19,3 +19,11 @@ export function findClass(element: HTMLElement,className: string): HTMLElement {
 	recurse(element,className,false);
 	return foundElement;
 }
+
+export function timeoutPromise(timeout): Promise<void> {
+	return new Promise<void>(function(resolve, reject) {
+		setTimeout(function() {
+			resolve();
+		}, timeout);
+	})
+}
