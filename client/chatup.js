@@ -101,6 +101,7 @@ var ChatUpProtocol = (function () {
                 _this._pushStream = new PushStream.PushStream({
                     host: url.parse(_this._worker.host).hostname,
                     port: _this._conf.nginxPort,
+                    pingtimeout: 1000,
                     modes: 'websocket|eventsource|longpolling'
                 });
                 _this._pushStream.onmessage = _this._handleMessagesBuffer;
@@ -110,8 +111,20 @@ var ChatUpProtocol = (function () {
                         return resolve();
                     }
                 };
+                var retryCount = 0;
                 _this._pushStream.onerror = function (err) {
-                    console.log('Error');
+                    retryCount++;
+                    if (retryCount <= 2) {
+                        _this.status = 'subConnectError';
+                        setTimeout(function () {
+                            _this._pushStream.connect();
+                        }, 2000);
+                    }
+                    else {
+                        _this.status = 'workerSwitch';
+                        _this._error = { type: 'workerSubConnect', worker: _this._worker };
+                        _this.init();
+                    }
                 };
                 _this._pushStream.connect();
             });
@@ -214,6 +227,9 @@ var ChatUp = (function () {
             }
             else if (status === 'pubConnectError') {
                 _this._statusTextEl.innerText = 'Error connecting to worker, retrying...';
+            }
+            else if (status === 'subConnectError') {
+                _this._statusTextEl.innerText = 'Error connecting to sub worker, retrying...';
             }
             else if (status === 'workerSwitch') {
                 _this._statusTextEl.innerText = 'Getting another worker';

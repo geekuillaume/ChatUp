@@ -160,6 +160,7 @@ export class ChatUpProtocol {
       this._pushStream = new PushStream.PushStream({
         host: url.parse(this._worker.host).hostname,
         port: this._conf.nginxPort,
+        pingtimeout: 1000,
         modes: 'websocket|eventsource|longpolling'
       });
       this._pushStream.onmessage = this._handleMessagesBuffer;
@@ -169,11 +170,19 @@ export class ChatUpProtocol {
           return resolve();
         }
       }
+      var retryCount = 0;
       this._pushStream.onerror = (err) => {
-        // setTimeout(() => {
-        //   this._pushStream.connect();
-        // }, 2000);
-        console.log('Error');
+        retryCount++;
+        if (retryCount <= 2) {
+          this.status = 'subConnectError'
+          setTimeout(() => {
+            this._pushStream.connect();
+          }, 2000);
+        } else {
+          this.status = 'workerSwitch';
+          this._error = {type: 'workerSubConnect', worker: this._worker};
+          this.init();
+        }
       }
       this._pushStream.connect();
     });
@@ -270,6 +279,8 @@ export class ChatUp {
       this._statusTextEl.innerText = 'Getting worker from dispatcher';
     } else if (status === 'pubConnectError') {
       this._statusTextEl.innerText = 'Error connecting to worker, retrying...';
+    } else if (status === 'subConnectError') {
+      this._statusTextEl.innerText = 'Error connecting to sub worker, retrying...';
     } else if (status === 'workerSwitch') {
       this._statusTextEl.innerText = 'Getting another worker';
     } else if (status === 'noWorker') {
