@@ -315,6 +315,9 @@ export class ChatUp {
     if (this._messageInput.value.length == 0) {
       return;
     }
+    if (this._protocol.status !== 'authenticated') {
+      return alert('You need to be authenticated to send a message');
+    }
     this._protocol.say(this._messageInput.value).catch(function(err) {console.error(err)});
     this._messageInput.value = "";
   }
@@ -332,8 +335,12 @@ export class ChatUp {
   }
 
   authenticate(userInfo):Promise<any> {
-    this._conf.userInfo = userInfo;
-    return this._protocol.authenticate(userInfo);
+    if (this._protocol.status !== 'connected') {
+      alert('You need to be connected and not already authenticated to do that');
+    } else {
+      this._conf.userInfo = userInfo;
+      return this._protocol.authenticate(userInfo);
+    }
   }
 
   init():Promise<any> {

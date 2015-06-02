@@ -51,7 +51,9 @@ function addChatUp() {
     chatup.init();
   };
   authenticateButton.onclick = function() {
-    chatup.authenticate({name: nameInput.value});
+		if (chatup) {
+    	chatup.authenticate({name: nameInput.value});
+		}
   };
 }
 

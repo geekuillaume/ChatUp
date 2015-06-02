@@ -26350,6 +26350,9 @@ var ChatUp = (function () {
             if (_this._messageInput.value.length == 0) {
                 return;
             }
+            if (_this._protocol.status !== 'authenticated') {
+                return alert('You need to be authenticated to send a message');
+            }
             _this._protocol.say(_this._messageInput.value).catch(function (err) { console.error(err); });
             _this._messageInput.value = "";
         };
@@ -26372,8 +26375,13 @@ var ChatUp = (function () {
         this._initHTML();
     }
     ChatUp.prototype.authenticate = function (userInfo) {
-        this._conf.userInfo = userInfo;
-        return this._protocol.authenticate(userInfo);
+        if (this._protocol.status !== 'connected') {
+            alert('You need to be connected and not already authenticated to do that');
+        }
+        else {
+            this._conf.userInfo = userInfo;
+            return this._protocol.authenticate(userInfo);
+        }
     };
     ChatUp.prototype.init = function () {
         return this._protocol.init();
