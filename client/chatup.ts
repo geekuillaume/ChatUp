@@ -39,6 +39,7 @@ export class ChatUpProtocol {
   _worker: any;
   _msgHandlers: Function[] = [];
   _error: {type: string; worker: Worker;};
+  _dispatcherErrorCount = 0;
 
   _initPromise: Promise<any>;
 
@@ -89,8 +90,7 @@ export class ChatUpProtocol {
           return this._connectPub();
         return this;
       }).catch((err) => {
-        console.error('Couldn\'t connect, retrying');
-        return this.init();
+        console.error('Couldn\'t connect, retrying', err);
       });
     return this._initPromise;
   }
@@ -221,9 +221,17 @@ export class ChatUpProtocol {
   _getChatWorker = ():Promise<any> => {
     return new Promise((resolve, reject) => {
       this.status = 'gettingWorker';
-      request.post(this._conf.dispatcherURL)
-      .end((err, res) => {
+      var dispatcherRequest = request.post(this._conf.dispatcherURL);
+      if (this._error) {
+        dispatcherRequest.send(this._error);
+      }
+      dispatcherRequest.end((err, res) => {
         if (err) {
+          this._dispatcherErrorCount++;
+          if (this._dispatcherErrorCount >= 4) {
+            this._error = null;
+            this._dispatcherErrorCount = 0;
+          }
           if (err.status === 418)
             this.status = 'noWorker';
           else
@@ -231,6 +239,8 @@ export class ChatUpProtocol {
           // Try again after 2s
           return resolve(timeoutPromise(2000).then(this._getChatWorker));
         }
+        this._error = null;
+        this._dispatcherErrorCount = 0;
         this._worker = res.body;
         resolve(res.body);
       });

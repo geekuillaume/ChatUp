@@ -1,4 +1,5 @@
 var express = require('express');
+var bodyParser = require('body-parser');
 var _ = require('lodash');
 var dispatchHandler = require('./lib/dispatchHandler');
 var WorkersManager = require('./lib/workersManager');
@@ -16,6 +17,7 @@ var Dispatcher = (function () {
             next();
         };
         this._router = express.Router();
+        this._router.use(bodyParser.json());
         this._conf = _.defaults(conf, Dispatcher.defaultConf);
         this._router.use(this._handleError);
         this._router.use(this._allowCORS);

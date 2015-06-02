@@ -1,4 +1,5 @@
 import express = require('express');
+var bodyParser = require('body-parser');
 import _ = require('lodash');
 import dispatchHandler = require('./lib/dispatchHandler');
 import WorkersManager = require('./lib/workersManager');
@@ -6,6 +7,7 @@ import WorkersManager = require('./lib/workersManager');
 export interface workerHost {
   host: string;
   connections: number;
+  id: string;
 }
 
 interface DispatcherConf {
@@ -37,6 +39,7 @@ export class Dispatcher {
 
   constructor(conf: DispatcherConf = {}) {
     this._router = express.Router();
+    this._router.use(bodyParser.json());
     this._conf = _.defaults(conf, Dispatcher.defaultConf);
     this._router.use(this._handleError);
     this._router.use(this._allowCORS);

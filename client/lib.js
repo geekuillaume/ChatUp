@@ -26096,6 +26096,7 @@ var ChatUpProtocol = (function () {
     function ChatUpProtocol(conf) {
         var _this = this;
         this._msgHandlers = [];
+        this._dispatcherErrorCount = 0;
         this._stats = {
             msgSent: 0,
             msgReceived: 0,
@@ -26119,8 +26120,7 @@ var ChatUpProtocol = (function () {
                     return _this._connectPub();
                 return _this;
             }).catch(function (err) {
-                console.error('Couldn\'t connect, retrying');
-                return _this.init();
+                console.error('Couldn\'t connect, retrying', err);
             });
             return _this._initPromise;
         };
@@ -26247,15 +26247,25 @@ var ChatUpProtocol = (function () {
         this._getChatWorker = function () {
             return new Promise(function (resolve, reject) {
                 _this.status = 'gettingWorker';
-                request.post(_this._conf.dispatcherURL)
-                    .end(function (err, res) {
+                var dispatcherRequest = request.post(_this._conf.dispatcherURL);
+                if (_this._error) {
+                    dispatcherRequest.send(_this._error);
+                }
+                dispatcherRequest.end(function (err, res) {
                     if (err) {
+                        _this._dispatcherErrorCount++;
+                        if (_this._dispatcherErrorCount >= 4) {
+                            _this._error = null;
+                            _this._dispatcherErrorCount = 0;
+                        }
                         if (err.status === 418)
                             _this.status = 'noWorker';
                         else
                             _this.status = 'dispatcherError';
                         return resolve(helpers_1.timeoutPromise(2000).then(_this._getChatWorker));
                     }
+                    _this._error = null;
+                    _this._dispatcherErrorCount = 0;
                     _this._worker = res.body;
                     resolve(res.body);
                 });

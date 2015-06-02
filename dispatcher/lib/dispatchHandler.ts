@@ -5,7 +5,12 @@ var dispatchHandler = function (parent: Dispatcher.Dispatcher) {
 
   var handler: express.RequestHandler = function(req, res) {
 
-    parent._workersManager.getAvailable().then(function(worker) {
+    var exclude;
+    if (req.body && req.body.type && req.body.worker) {
+      exclude = req.body.worker.id;
+    }
+
+    parent._workersManager.getAvailable({excludeId: exclude}).then(function(worker) {
       if (worker) {
         res.send(worker);
       } else {

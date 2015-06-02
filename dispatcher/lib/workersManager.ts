@@ -28,7 +28,8 @@ class WorkersManager {
           console.error('Error on redis command:', err);
         } else {
           this._workers = workersInfo;
-          _.each(this._workers, (worker) => {
+          _.each(this._workers, (worker, i) => {
+            worker.id = workersName[i];
             worker.connections = Number(worker.connections);
           });
           console.log(this._workers);
@@ -39,10 +40,10 @@ class WorkersManager {
     });
   }
 
-  getAvailable(): Promise<Dispatcher.workerHost> {
+  getAvailable({excludeId: excludeId}): Promise<Dispatcher.workerHost> {
     return new Promise<Dispatcher.workerHost>((resolve, reject) => {
 
-      var workers = <Dispatcher.workerHost[]>_(this._workers).sortBy('connections').value();
+      var workers = <Dispatcher.workerHost[]>_(this._workers).reject({id: excludeId}).sortBy('connections').value();
       console.log(workers);
 
       var worker = workers[0];

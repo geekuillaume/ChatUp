@@ -18,7 +18,8 @@ var WorkersManager = (function () {
                     }
                     else {
                         _this._workers = workersInfo;
-                        _.each(_this._workers, function (worker) {
+                        _.each(_this._workers, function (worker, i) {
+                            worker.id = workersName[i];
                             worker.connections = Number(worker.connections);
                         });
                         console.log(_this._workers);
@@ -32,10 +33,11 @@ var WorkersManager = (function () {
         this._redisConnection = redis.createClient(this._parent._conf.redis.port, this._parent._conf.redis.host);
         this._workerRefresh();
     }
-    WorkersManager.prototype.getAvailable = function () {
+    WorkersManager.prototype.getAvailable = function (_a) {
         var _this = this;
+        var excludeId = _a.excludeId;
         return new Promise(function (resolve, reject) {
-            var workers = _(_this._workers).sortBy('connections').value();
+            var workers = _(_this._workers).reject({ id: excludeId }).sortBy('connections').value();
             console.log(workers);
             var worker = workers[0];
             if (worker) {
