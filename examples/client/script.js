@@ -44,7 +44,7 @@ function addChatUp() {
 
   joinButton.onclick = function() {
     chatup = new ChatUp.ChatUp(findClass(element, 'ChatUpTestContainer'), {
-      dispatcherURL: 'http://localhost:8000',
+      dispatcherURL: document.getElementById('dispatcherURL').value,
       room: roomInput.value,
       socketIO: {transports: ['websocket'], multiplex: false} // Disabling multiplex to force multiple websockets and not reusing an already connected one
     });
