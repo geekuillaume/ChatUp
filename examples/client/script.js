@@ -26,7 +26,7 @@ function addChatUp() {
     '<div class="ChatUpTest col-md-3">',
     '  <div class="ChatUpTestRoom">',
     '    <div>',
-    '      <input type="text" placeholder="Room Name" class="ChatUpTestRoomInput" value="coucou"> <button class="ChatUpTestJoin">Join room</button>',
+    '      <input type="text" placeholder="Room Name" class="ChatUpTestRoomInput" value="TestRoom"> <button class="ChatUpTestJoin">Join room</button>',
     '    </div>',
     '    <div>',
     '      <input type="text" placeholder="Your Name" class="ChatUpTestNameInput" value="TestUser"> <button class="ChatUpTestAuthenticate">Authenticate</button>',
