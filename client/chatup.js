@@ -281,6 +281,7 @@ var ChatUp = (function () {
         this._el = el;
         this._conf = conf;
         this._protocol = new ChatUpProtocol(this._conf);
+        this._protocol.onMsg(this._onMsg);
         this._protocol.onStatusChange(this._protocolStatusChange);
         this._initHTML();
     }
