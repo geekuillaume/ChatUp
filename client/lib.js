@@ -26217,17 +26217,17 @@ var ChatUpProtocol = (function () {
         };
         this._connectPub = function () {
             return new Promise(function (resolve, reject) {
-                _this._pubSocket = io(_this._worker.host, _this._conf.socketIO);
-                _this._pubSocket.on('connect', function () {
-                    _this._pubSocket.emit('auth', _this._conf.userInfo, function (response) {
+                _this._pubSocket = _this._pubSocket || io(_this._worker.host, _this._conf.socketIO);
+                _this._pubSocket.emit('auth', _this._conf.userInfo, function (response) {
+                    if (!_this._isCorrectReponse(response, reject)) {
+                        _this.status = 'authError';
+                        return;
+                    }
+                    _this._pubSocket.emit('join', { room: _this._conf.room }, function (response) {
                         if (!_this._isCorrectReponse(response, reject))
                             return;
-                        _this._pubSocket.emit('join', { room: _this._conf.room }, function (response) {
-                            if (!_this._isCorrectReponse(response, reject))
-                                return;
-                            _this.status = 'authenticated';
-                            return resolve();
-                        });
+                        _this.status = 'authenticated';
+                        return resolve();
                     });
                 });
                 var rejectFct = _.after(2, function (err) {
@@ -26333,6 +26333,9 @@ var ChatUp = (function () {
             else if (status === 'noWorker') {
                 _this._statusTextEl.innerText = 'No worker available, retrying...';
             }
+            else if (status === 'authError') {
+                _this._statusTextEl.innerText = 'Wrong JWT token';
+            }
             else if (status === 'dispatcherError') {
                 _this._statusTextEl.innerText = 'Error with dispatcher, retrying...';
             }
@@ -26375,7 +26378,7 @@ var ChatUp = (function () {
         this._initHTML();
     }
     ChatUp.prototype.authenticate = function (userInfo) {
-        if (this._protocol.status !== 'connected') {
+        if (this._protocol.status !== 'connected' && this._protocol.status !== 'authError') {
             alert('You need to be connected and not already authenticated to do that');
         }
         else {

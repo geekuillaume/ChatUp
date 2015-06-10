@@ -29,7 +29,7 @@ function addChatUp() {
     '      <input type="text" placeholder="Room Name" class="ChatUpTestRoomInput" value="TestRoom"> <button class="ChatUpTestJoin">Join room</button>',
     '    </div>',
     '    <div>',
-    '      <input type="text" placeholder="Your Name" class="ChatUpTestNameInput" value="TestUser"> <button class="ChatUpTestAuthenticate">Authenticate</button>',
+    '      <textarea type="text" placeholder="JsonWebToken" class="ChatUpTestJWT"></textarea> <button class="ChatUpTestAuthenticate">Authenticate</button>',
     '    </div>',
     '  </div>',
     '  <div class="ChatUpTestContainer"></div>',
@@ -37,7 +37,7 @@ function addChatUp() {
   document.getElementById('main').appendChild(element);
   var roomInput = findClass(element, 'ChatUpTestRoomInput');
   var joinButton = findClass(element, 'ChatUpTestJoin');
-  var nameInput = findClass(element, 'ChatUpTestNameInput');
+  var jwtTextArea = findClass(element, 'ChatUpTestJWT');
   var authenticateButton = findClass(element, 'ChatUpTestAuthenticate');
 
   var chatup;
@@ -52,7 +52,7 @@ function addChatUp() {
   };
   authenticateButton.onclick = function() {
 		if (chatup) {
-    	chatup.authenticate({name: nameInput.value});
+    	chatup.authenticate(jwtTextArea.value);
 		}
   };
 }

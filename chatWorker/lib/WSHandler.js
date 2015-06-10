@@ -1,5 +1,6 @@
 var socketio = require('socket.io');
 var http = require('http');
+var jwt = require('jsonwebtoken');
 var redisAdaptater = require('socket.io-redis');
 var debugFactory = require('debug');
 var _ = require('lodash');
@@ -52,16 +53,20 @@ var ChatUpSocket = (function () {
     function ChatUpSocket(socket, parent) {
         var _this = this;
         this._onAuth = function (msg, cb) {
-            if (!_.isObject(msg) || !_.isString(msg.name)) {
+            if (!_.isString(msg)) {
+                _this._debug('Authentication error: Wrong format', msg);
                 return cb({ status: 'error', err: "Wrong format" });
             }
-            _this._user = {
-                _public: {
-                    name: msg.name
+            console.log("Key:", _this._parent._conf.jwt.key);
+            jwt.verify(msg, _this._parent._conf.jwt.key, _this._parent._conf.jwt.options, function (err, decoded) {
+                if (err) {
+                    _this._debug('Authentication error: Wrong JWT', msg, err);
+                    return cb({ status: 'error', err: "Wrong JWT" });
                 }
-            };
-            _this._debug('Authentified');
-            cb('ok');
+                _this._user = decoded;
+                _this._debug('Authentified');
+                cb('ok');
+            });
         };
         this._onJoin = function (msg, cb) {
             if (!_.isObject(msg) || !_.isString(msg.room)) {

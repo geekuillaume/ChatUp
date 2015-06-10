@@ -190,17 +190,17 @@ export class ChatUpProtocol {
 
   _connectPub = ():Promise<any> => {
     return new Promise((resolve, reject) => {
-      this._pubSocket = io(this._worker.host, this._conf.socketIO);
-      this._pubSocket.on('connect', () => {
-        this._pubSocket.emit('auth', this._conf.userInfo, (response) => {
+      this._pubSocket = this._pubSocket || io(this._worker.host, this._conf.socketIO);
+      this._pubSocket.emit('auth', this._conf.userInfo, (response) => {
+        if (!this._isCorrectReponse(response, reject)) {
+          this.status = 'authError';
+          return;
+        }
+        this._pubSocket.emit('join', {room: this._conf.room}, (response) => {
           if (!this._isCorrectReponse(response, reject))
             return;
-          this._pubSocket.emit('join', {room: this._conf.room}, (response) => {
-            if (!this._isCorrectReponse(response, reject))
-              return;
-            this.status = 'authenticated';
-            return resolve();
-          });
+          this.status = 'authenticated';
+          return resolve();
         });
       });
       var rejectFct = _.after(2, (err) => {
@@ -296,6 +296,8 @@ export class ChatUp {
       this._statusTextEl.innerText = 'Getting another worker';
     } else if (status === 'noWorker') {
       this._statusTextEl.innerText = 'No worker available, retrying...';
+    } else if (status === 'authError') {
+      this._statusTextEl.innerText = 'Wrong JWT token';
     } else if (status === 'dispatcherError') {
       this._statusTextEl.innerText = 'Error with dispatcher, retrying...';
     }
@@ -335,7 +337,7 @@ export class ChatUp {
   }
 
   authenticate(userInfo):Promise<any> {
-    if (this._protocol.status !== 'connected') {
+    if (this._protocol.status !== 'connected' && this._protocol.status !== 'authError') {
       alert('You need to be connected and not already authenticated to do that');
     } else {
       this._conf.userInfo = userInfo;

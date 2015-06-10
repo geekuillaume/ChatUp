@@ -1,7 +1,7 @@
 import _ = require('lodash');
 var debug = require('debug')('ChatUp:ChatWorker:master');
 import {sticky} from './lib/sticky';
-import {WSHandler} from './lib/WSHandler';
+import {WSHandler, WSUser} from './lib/WSHandler';
 import {registerWorker} from './lib/workerManager';
 import {Store} from './lib/store';
 import cluster = require('cluster');
@@ -23,6 +23,12 @@ export interface ChatWorkerConf {
   nginx?: {
     host: string;
     port: number;
+  },
+  jwt?: {
+    key: string,
+    options?: {
+      algorithms: string[];
+    }
   }
 };
 

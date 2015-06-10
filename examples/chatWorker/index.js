@@ -1,6 +1,6 @@
 var ChatUp = require('../../');
 
-var worker = new ChatUp.ChatWorker({
+var conf = {
   redis: {
     host: 'localhost',
     port: 6379
@@ -9,8 +9,16 @@ var worker = new ChatUp.ChatWorker({
   hostname: "127.0.0.1",
   origins: '*',
   threads: 1,
-  sticky: false // For benchmark purpose, we don't want to have sticky sessions
-});
+  sticky: false, // For benchmark purpose, we don't want to have sticky sessions
+  jwt: {
+    key: require('fs').readFileSync(__dirname + '/JWTKeyExample.pub').toString(),
+    options: {
+      algorithms: ["RS256"]
+    }
+  }
+};
+
+var worker = new ChatUp.ChatWorker(conf);
 
 worker.listen().then(function() {
   console.log('Chat Worker started !');

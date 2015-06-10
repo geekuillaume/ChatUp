@@ -28,6 +28,9 @@
     },
     "superagent/superagent.d.ts": {
       "commit": "2d4c4679bc2b509f27435a4f9da5e2de11258571"
+    },
+    "jsonwebtoken/jsonwebtoken.d.ts": {
+      "commit": "52dc8fc39354569838b7bc09e24df690b852b4d9"
     }
   }
 }

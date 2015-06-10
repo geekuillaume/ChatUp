@@ -1,5 +1,6 @@
 import socketio = require('socket.io');
 import http = require('http');
+import jwt = require('jsonwebtoken');
 var redisAdaptater = require('socket.io-redis');
 var debugFactory = require('debug');
 import _ = require('lodash');
@@ -55,7 +56,7 @@ export class WSHandler {
   }
 }
 
-interface WSUser {
+export interface WSUser {
   _public: {};
 }
 
@@ -79,16 +80,24 @@ class ChatUpSocket {
   }
 
   _onAuth = (msg, cb) => {
-    if (!_.isObject(msg) || !_.isString(msg.name)) {
+    if (!_.isString(msg)) {
+      this._debug('Authentication error: Wrong format', msg);
       return cb({status: 'error', err: "Wrong format"});
     }
-    this._user = {
-      _public: {
-        name: msg.name
-      }
-    };
-    this._debug('Authentified');
-    cb('ok');
+    console.log("Key:", this._parent._conf.jwt.key);
+    jwt.verify(
+      msg,
+      this._parent._conf.jwt.key,
+      this._parent._conf.jwt.options,
+      (err, decoded) => {
+        if (err) {
+          this._debug('Authentication error: Wrong JWT', msg, err);
+          return cb({status: 'error', err: "Wrong JWT"});
+        }
+        this._user = decoded;
+        this._debug('Authentified');
+        cb('ok');
+    });
   }
 
   _onJoin = (msg, cb) => {
