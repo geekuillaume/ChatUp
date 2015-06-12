@@ -59,6 +59,15 @@ export class Store {
     return room;
   }
 
+  getChannelStats = (): [{channel: string, publishers: number}] => {
+    return <any>_.map(this._rooms, (room) => {
+      return {
+        name: room.name,
+        publishers: room._joined
+      }
+    });
+  }
+
   _pub = (roomName, message) => {
     this._debug("Sending on redis in room %s", roomName);
     this._pubClient.publish("r_" + roomName, JSON.stringify(message));
@@ -66,7 +75,7 @@ export class Store {
 
 }
 
-export class Room extends EventEmitter {
+export class Room {
   name: string;
   _parent: Store;
   _joined: number;
@@ -75,7 +84,6 @@ export class Room extends EventEmitter {
   _handlers: Function[];
 
   constructor(name: string, parent: Store) {
-    super();
     this._debug = debugFactory('ChatUp:Store:Room:' + name + ':' + process.pid);
     this._debug('Created room');
     this._parent = parent;

@@ -18,7 +18,8 @@ var WSHandler = (function () {
                 process.send({
                     type: 'chatUp:stats',
                     stats: {
-                        connections: _this._sockets.length
+                        connections: _this._sockets.length,
+                        channels: _this._store.getChannelStats()
                     }
                 });
             }, 200);
@@ -57,7 +58,6 @@ var ChatUpSocket = (function () {
                 _this._debug('Authentication error: Wrong format', msg);
                 return cb({ status: 'error', err: "Wrong format" });
             }
-            console.log("Key:", _this._parent._conf.jwt.key);
             jwt.verify(msg, _this._parent._conf.jwt.key, _this._parent._conf.jwt.options, function (err, decoded) {
                 if (err) {
                     _this._debug('Authentication error: Wrong JWT', msg, err);

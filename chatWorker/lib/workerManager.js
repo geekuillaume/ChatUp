@@ -4,16 +4,37 @@ var uuid = require('node-uuid');
 var url = require('url');
 var _ = require('lodash');
 var redis = require('redis');
+var superagent = require('superagent');
 exports.registerWorker = function (worker) {
     var redisConnection = redis.createClient(worker._conf.redis.port, worker._conf.redis.host);
     return validateWorkerInfos(worker).then(function () {
-        return registerInRedis(worker, redisConnection);
-    }).then(function () {
         startWSHandlersMonitoring(worker);
     }).then(function () {
         startAlivePing(worker, redisConnection);
     });
 };
+function getNginxStats(worker) {
+    return new Promise(function (resolve, reject) {
+        superagent.get('http://127.0.0.1:' + worker._conf.nginx.port + '/channels-stats?id=ALL')
+            .end(function (err, res) {
+            if (err) {
+                debug('Error while getting nginx stats', err);
+                return reject(err);
+            }
+            try {
+                var rawStats = JSON.parse(res.text);
+                var channelsStats = _.map(rawStats.infos, function (info) {
+                    return [info.channel, Number(info.subscribers)];
+                });
+            }
+            catch (err) {
+                debug('Error while parsing nginx stats', err);
+                return reject(err);
+            }
+            resolve(channelsStats);
+        });
+    });
+}
 function validateWorkerInfos(worker) {
     return new Promise(function (resolve, reject) {
         if (!worker._conf.uuid) {
@@ -47,13 +68,19 @@ function startWSHandlersMonitoring(worker) {
         });
     });
 }
-function registerInRedis(worker, redisConnection) {
+function registerInRedis(worker, redisConnection, stats) {
     return new Promise(function (resolve, reject) {
         var keyName = "chatUp:chatServer:" + worker._conf.uuid;
         redisConnection.multi()
             .hmset(keyName, {
             host: worker._conf.host,
-            connections: _(worker._workers).map('stats').map('connections').sum()
+            connections: _(worker._workers).map('stats').map('connections').sum(),
+            pubStats: JSON.stringify(_(worker._workers).map('stats').map('channels').flatten().reduce(function (stats, channel) {
+                stats[channel.name] = stats[channel.name] || 0;
+                stats[channel.name] += channel.publishers;
+                return stats;
+            }, {})),
+            nginxStats: JSON.stringify(stats)
         })
             .pexpire(keyName, worker._conf.expireDelay)
             .exec(function (err, results) {
@@ -66,7 +93,11 @@ function registerInRedis(worker, redisConnection) {
 }
 function startAlivePing(worker, redisConnection) {
     var interval = setInterval(function () {
-        registerInRedis(worker, redisConnection);
+        getNginxStats(worker).then(function (nginxStats) {
+            registerInRedis(worker, redisConnection, { channels: nginxStats });
+        }).catch(function (err) {
+            registerInRedis(worker, redisConnection, { err: 'nginxStats' });
+        });
     }, worker._conf.expireDelay * 0.8);
     interval.unref();
 }

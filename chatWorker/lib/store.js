@@ -1,10 +1,3 @@
-var __extends = (this && this.__extends) || function (d, b) {
-    for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
-    function __() { this.constructor = d; }
-    __.prototype = b.prototype;
-    d.prototype = new __();
-};
-var events_1 = require('events');
 var redis = require('redis');
 var _ = require('lodash');
 var superagent = require('superagent');
@@ -33,6 +26,14 @@ var Store = (function () {
             room.join();
             return room;
         };
+        this.getChannelStats = function () {
+            return _.map(_this._rooms, function (room) {
+                return {
+                    name: room.name,
+                    publishers: room._joined
+                };
+            });
+        };
         this._pub = function (roomName, message) {
             _this._debug("Sending on redis in room %s", roomName);
             _this._pubClient.publish("r_" + roomName, JSON.stringify(message));
@@ -55,11 +56,9 @@ var Store = (function () {
     return Store;
 })();
 exports.Store = Store;
-var Room = (function (_super) {
-    __extends(Room, _super);
+var Room = (function () {
     function Room(name, parent) {
         var _this = this;
-        _super.call(this);
         this.say = function (message) {
             _this._debug('Saying:', message);
             _this._parent._pub(_this.name, message);
@@ -115,5 +114,5 @@ var Room = (function (_super) {
         }
     }
     return Room;
-})(events_1.EventEmitter);
+})();
 exports.Room = Room;

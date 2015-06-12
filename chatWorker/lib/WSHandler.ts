@@ -40,7 +40,8 @@ export class WSHandler {
       process.send({
         type: 'chatUp:stats',
         stats: {
-          connections: this._sockets.length
+          connections: this._sockets.length,
+          channels: this._store.getChannelStats()
         }
       });
     }, 200);
@@ -84,7 +85,6 @@ class ChatUpSocket {
       this._debug('Authentication error: Wrong format', msg);
       return cb({status: 'error', err: "Wrong format"});
     }
-    console.log("Key:", this._parent._conf.jwt.key);
     jwt.verify(
       msg,
       this._parent._conf.jwt.key,
