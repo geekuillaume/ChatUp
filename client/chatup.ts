@@ -9,7 +9,7 @@ import {findClass, timeoutPromise} from './lib/helpers';
 
 interface ChatUpConf {
   dispatcherURL: string;
-  userInfo?: any;
+  jwt?: any;
   room: string;
   socketIO: {};
   nginxPort: number;
@@ -86,7 +86,7 @@ export class ChatUpProtocol {
       .then(this._connectSub)
       .then(() => {
         this.status = 'connected';
-        if (this._conf.userInfo)
+        if (this._conf.jwt)
           return this._connectPub();
         return this;
       }).catch((err) => {
@@ -95,8 +95,7 @@ export class ChatUpProtocol {
     return this._initPromise;
   }
 
-  authenticate = (userInfo = this._conf.userInfo) => {
-    this._conf.userInfo = userInfo;
+  authenticate = () => {
     return this._waitInit(() => {
       return this._connectPub();
     });
@@ -191,7 +190,7 @@ export class ChatUpProtocol {
   _connectPub = ():Promise<any> => {
     return new Promise((resolve, reject) => {
       this._pubSocket = this._pubSocket || io(this._worker.host, this._conf.socketIO);
-      this._pubSocket.emit('auth', this._conf.userInfo, (response) => {
+      this._pubSocket.emit('auth', this._conf.jwt, (response) => {
         if (!this._isCorrectReponse(response, reject)) {
           this.status = 'authError';
           return;
@@ -213,6 +212,7 @@ export class ChatUpProtocol {
       this._pubSocket.on('reconnect_failed', () => {
         this.status = 'workerSwitch';
         this._error = {type: 'workerPubConnect', worker: this._worker};
+        this._pubSocket = null;
         this.init();
       })
     });
@@ -285,7 +285,7 @@ export class ChatUp {
     if (status === 'connected') {
       this._statusTextEl.innerText = 'Connected to ' + this._conf.room + ' on server ' + this._protocol._worker.host;
     } else if (status === 'authenticated') {
-      this._statusTextEl.innerText = 'Connected as ' + this._conf.userInfo.name + ' to ' + this._conf.room + ' on server: ' + this._protocol._worker.host;
+      this._statusTextEl.innerText = 'Connected as a publisher to ' + this._conf.room + ' on server: ' + this._protocol._worker.host;
     } else if (status === 'gettingWorker') {
       this._statusTextEl.innerText = 'Getting worker from dispatcher';
     } else if (status === 'pubConnectError') {
@@ -336,12 +336,12 @@ export class ChatUp {
     }
   }
 
-  authenticate(userInfo):Promise<any> {
+  authenticate(jwt):Promise<any> {
     if (this._protocol.status !== 'connected' && this._protocol.status !== 'authError') {
       alert('You need to be connected and not already authenticated to do that');
     } else {
-      this._conf.userInfo = userInfo;
-      return this._protocol.authenticate(userInfo);
+      this._conf.jwt = jwt;
+      return this._protocol.authenticate();
     }
   }
 

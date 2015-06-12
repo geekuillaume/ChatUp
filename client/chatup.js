@@ -30,7 +30,7 @@ var ChatUpProtocol = (function () {
                 .then(_this._connectSub)
                 .then(function () {
                 _this.status = 'connected';
-                if (_this._conf.userInfo)
+                if (_this._conf.jwt)
                     return _this._connectPub();
                 return _this;
             }).catch(function (err) {
@@ -38,9 +38,7 @@ var ChatUpProtocol = (function () {
             });
             return _this._initPromise;
         };
-        this.authenticate = function (userInfo) {
-            if (userInfo === void 0) { userInfo = _this._conf.userInfo; }
-            _this._conf.userInfo = userInfo;
+        this.authenticate = function () {
             return _this._waitInit(function () {
                 return _this._connectPub();
             });
@@ -132,7 +130,7 @@ var ChatUpProtocol = (function () {
         this._connectPub = function () {
             return new Promise(function (resolve, reject) {
                 _this._pubSocket = _this._pubSocket || io(_this._worker.host, _this._conf.socketIO);
-                _this._pubSocket.emit('auth', _this._conf.userInfo, function (response) {
+                _this._pubSocket.emit('auth', _this._conf.jwt, function (response) {
                     if (!_this._isCorrectReponse(response, reject)) {
                         _this.status = 'authError';
                         return;
@@ -154,6 +152,7 @@ var ChatUpProtocol = (function () {
                 _this._pubSocket.on('reconnect_failed', function () {
                     _this.status = 'workerSwitch';
                     _this._error = { type: 'workerPubConnect', worker: _this._worker };
+                    _this._pubSocket = null;
                     _this.init();
                 });
             });
@@ -230,7 +229,7 @@ var ChatUp = (function () {
                 _this._statusTextEl.innerText = 'Connected to ' + _this._conf.room + ' on server ' + _this._protocol._worker.host;
             }
             else if (status === 'authenticated') {
-                _this._statusTextEl.innerText = 'Connected as ' + _this._conf.userInfo.name + ' to ' + _this._conf.room + ' on server: ' + _this._protocol._worker.host;
+                _this._statusTextEl.innerText = 'Connected as a publisher to ' + _this._conf.room + ' on server: ' + _this._protocol._worker.host;
             }
             else if (status === 'gettingWorker') {
                 _this._statusTextEl.innerText = 'Getting worker from dispatcher';
@@ -291,13 +290,13 @@ var ChatUp = (function () {
         this._protocol.onStatusChange(this._protocolStatusChange);
         this._initHTML();
     }
-    ChatUp.prototype.authenticate = function (userInfo) {
+    ChatUp.prototype.authenticate = function (jwt) {
         if (this._protocol.status !== 'connected' && this._protocol.status !== 'authError') {
             alert('You need to be connected and not already authenticated to do that');
         }
         else {
-            this._conf.userInfo = userInfo;
-            return this._protocol.authenticate(userInfo);
+            this._conf.jwt = jwt;
+            return this._protocol.authenticate();
         }
     };
     ChatUp.prototype.init = function () {
