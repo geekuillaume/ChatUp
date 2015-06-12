@@ -26,7 +26,7 @@ var WSHandler = (function () {
         };
         this._onConnection = function (socket) {
             _this._debug('Got connection %s from %s', socket.id, socket.client.conn.remoteAddress);
-            _this._sockets.push(new ChatUpSocket(socket, _this));
+            _this._sockets.push(new ChatUpClient(socket, _this));
         };
         this._debug = debugFactory('ChatUp:ChatWorker:slave:' + process.pid);
         this._debug('Slave init');
@@ -50,8 +50,8 @@ var WSHandler = (function () {
     return WSHandler;
 })();
 exports.WSHandler = WSHandler;
-var ChatUpSocket = (function () {
-    function ChatUpSocket(socket, parent) {
+var ChatUpClient = (function () {
+    function ChatUpClient(socket, parent) {
         var _this = this;
         this._onAuth = function (msg, cb) {
             if (!_.isString(msg)) {
@@ -75,7 +75,7 @@ var ChatUpSocket = (function () {
             if (_this._room) {
                 return cb({ status: 'error', err: "Already in a room" });
             }
-            _this._room = _this._parent._store.joinRoom(msg.room);
+            _this._room = _this._parent._store.joinRoom(msg.room, _this);
             _this._debug('Joined room %s', _this._room.name);
             cb('ok');
         };
@@ -96,7 +96,7 @@ var ChatUpSocket = (function () {
         this._onDisconnect = function () {
             _this._debug('Client disconnected');
             if (_this._room) {
-                _this._room.quit();
+                _this._room.quit(_this);
             }
             _.remove(_this._parent._sockets, _this);
         };
@@ -109,5 +109,6 @@ var ChatUpSocket = (function () {
         this._socket.on('say', this._onSay);
         this._socket.on('disconnect', this._onDisconnect);
     }
-    return ChatUpSocket;
+    return ChatUpClient;
 })();
+exports.ChatUpClient = ChatUpClient;

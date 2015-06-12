@@ -5,6 +5,7 @@ import {ChatMessage} from '../index';
 import {WSHandler} from './WSHandler';
 import superagent = require('superagent');
 import {ChatWorkerConf} from '../index';
+import {ChatUpClient} from './WSHandler';
 var Agent = require('agentkeepalive');
 var debugFactory = require('debug');
 
@@ -49,13 +50,13 @@ export class Store {
     room._pushMessage(message);
   }
 
-  joinRoom = (roomName: string): Room => {
+  joinRoom = (roomName: string, client: ChatUpClient): Room => {
     var room = this._rooms[roomName];
     if (!room) {
       room = new Room(roomName, this);
       this._rooms[roomName] = room;
     }
-    room.join();
+    room.join(client);
     return room;
   }
 
@@ -63,7 +64,7 @@ export class Store {
     return <any>_.map(this._rooms, (room) => {
       return {
         name: room.name,
-        publishers: room._joined
+        publishers: _.map(room._clients, _.property('_user.name'))
       }
     });
   }
@@ -79,9 +80,10 @@ export class Room {
   name: string;
   _parent: Store;
   _joined: number;
-  _messageBuffer: ChatMessage[];
+  _messageBuffer: ChatMessage[] = [];
   _debug: Function;
-  _handlers: Function[];
+  _handlers: Function[] = [];
+  _clients: ChatUpClient[] = [];
 
   constructor(name: string, parent: Store) {
     this._debug = debugFactory('ChatUp:Store:Room:' + name + ':' + process.pid);
@@ -89,8 +91,6 @@ export class Room {
     this._parent = parent;
     this.name = name;
     this._joined = 0;
-    this._messageBuffer = [];
-    this._handlers = [];
     if (parent._isMaster) {
       setInterval(this._drain, this._parent._conf.msgBufferDelay);
     }
@@ -138,12 +138,14 @@ export class Room {
     this._debug('Received and added to buffer: %s', message.msg);
   }
 
-  join = () => {
+  join = (client: ChatUpClient) => {
     this._debug('Join');
     this._joined++;
+    this._clients.push(client);
   }
-  quit = () => {
+  quit = (client: ChatUpClient) => {
     this._debug('Quit');
     this._joined--;
+    _.remove(this._clients, <any>client);
   }
 }

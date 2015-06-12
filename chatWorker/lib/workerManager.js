@@ -76,11 +76,10 @@ function registerInRedis(worker, redisConnection, stats) {
             host: worker._conf.host,
             connections: _(worker._workers).map('stats').map('connections').sum(),
             pubStats: JSON.stringify(_(worker._workers).map('stats').map('channels').flatten().reduce(function (stats, channel) {
-                stats[channel.name] = stats[channel.name] || 0;
-                stats[channel.name] += channel.publishers;
+                stats[channel.name] = _.union(stats[channel.name] || [], channel.publishers);
                 return stats;
             }, {})),
-            nginxStats: JSON.stringify(stats)
+            subStats: JSON.stringify(stats)
         })
             .pexpire(keyName, worker._conf.expireDelay)
             .exec(function (err, results) {
@@ -94,8 +93,9 @@ function registerInRedis(worker, redisConnection, stats) {
 function startAlivePing(worker, redisConnection) {
     var interval = setInterval(function () {
         getNginxStats(worker).then(function (nginxStats) {
-            registerInRedis(worker, redisConnection, { channels: nginxStats });
+            return registerInRedis(worker, redisConnection, { channels: nginxStats });
         }).catch(function (err) {
+            console.log(err.stack);
             registerInRedis(worker, redisConnection, { err: 'nginxStats' });
         });
     }, worker._conf.expireDelay * 0.8);

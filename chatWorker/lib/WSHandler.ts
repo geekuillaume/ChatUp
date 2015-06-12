@@ -17,7 +17,7 @@ export class WSHandler {
   _io: SocketIO.Server;
   _conf:ChatWorkerConf;
   _app: http.Server;
-  _sockets: ChatUpSocket[];
+  _sockets: ChatUpClient[];
   _debug: Function;
   _store: Store;
 
@@ -49,7 +49,7 @@ export class WSHandler {
 
   _onConnection = (socket: SocketIO.Socket) => {
     this._debug('Got connection %s from %s', socket.id, socket.client.conn.remoteAddress);
-    this._sockets.push(new ChatUpSocket(socket, this));
+    this._sockets.push(new ChatUpClient(socket, this));
   }
 
   get server() {
@@ -61,7 +61,7 @@ export interface WSUser {
   _public: {};
 }
 
-class ChatUpSocket {
+export class ChatUpClient {
   _socket: SocketIO.Socket;
   _parent: WSHandler;
   _room: Room;
@@ -107,7 +107,7 @@ class ChatUpSocket {
     if (this._room) {
       return cb({status: 'error', err: "Already in a room"});
     }
-    this._room = this._parent._store.joinRoom(msg.room);
+    this._room = this._parent._store.joinRoom(msg.room, this);
     this._debug('Joined room %s', this._room.name);
     cb('ok');
   }
@@ -130,9 +130,9 @@ class ChatUpSocket {
   _onDisconnect = () => {
     this._debug('Client disconnected');
     if (this._room) {
-      this._room.quit();
+      this._room.quit(this);
     }
-    _.remove(this._parent._sockets, this);
+    _.remove(this._parent._sockets, <any>this);
   }
 
 }

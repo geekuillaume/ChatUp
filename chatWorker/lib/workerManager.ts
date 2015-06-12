@@ -81,11 +81,10 @@ function registerInRedis(worker: ChatWorker, redisConnection: redis.RedisClient,
         host: worker._conf.host,
         connections: _(worker._workers).map('stats').map('connections').sum(),
         pubStats: JSON.stringify(_(worker._workers).map('stats').map('channels').flatten().reduce((stats, channel:any) => {
-          stats[channel.name] = stats[channel.name] || 0;
-          stats[channel.name] += channel.publishers;
+          stats[channel.name] = _.union(stats[channel.name] || [], channel.publishers);
           return stats;
         }, {})),
-        nginxStats: JSON.stringify(stats)
+        subStats: JSON.stringify(stats)
       })
       .pexpire(keyName, worker._conf.expireDelay)
       .exec((err, results) => {
@@ -100,8 +99,9 @@ function registerInRedis(worker: ChatWorker, redisConnection: redis.RedisClient,
 function startAlivePing(worker: ChatWorker, redisConnection: redis.RedisClient) {
   var interval = setInterval(function() {
     getNginxStats(worker).then((nginxStats) => {
-      registerInRedis(worker, redisConnection, {channels: nginxStats});
+      return registerInRedis(worker, redisConnection, {channels: nginxStats});
     }).catch((err) => {
+      console.log(err.stack);
       registerInRedis(worker, redisConnection, {err: 'nginxStats'});
     });
   }, worker._conf.expireDelay * 0.8);

@@ -17,20 +17,20 @@ var Store = (function () {
             }
             room._pushMessage(message);
         };
-        this.joinRoom = function (roomName) {
+        this.joinRoom = function (roomName, client) {
             var room = _this._rooms[roomName];
             if (!room) {
                 room = new Room(roomName, _this);
                 _this._rooms[roomName] = room;
             }
-            room.join();
+            room.join(client);
             return room;
         };
         this.getChannelStats = function () {
             return _.map(_this._rooms, function (room) {
                 return {
                     name: room.name,
-                    publishers: room._joined
+                    publishers: _.map(room._clients, _.property('_user.name'))
                 };
             });
         };
@@ -59,6 +59,9 @@ exports.Store = Store;
 var Room = (function () {
     function Room(name, parent) {
         var _this = this;
+        this._messageBuffer = [];
+        this._handlers = [];
+        this._clients = [];
         this.say = function (message) {
             _this._debug('Saying:', message);
             _this._parent._pub(_this.name, message);
@@ -94,21 +97,21 @@ var Room = (function () {
             _this._messageBuffer.push(message);
             _this._debug('Received and added to buffer: %s', message.msg);
         };
-        this.join = function () {
+        this.join = function (client) {
             _this._debug('Join');
             _this._joined++;
+            _this._clients.push(client);
         };
-        this.quit = function () {
+        this.quit = function (client) {
             _this._debug('Quit');
             _this._joined--;
+            _.remove(_this._clients, client);
         };
         this._debug = debugFactory('ChatUp:Store:Room:' + name + ':' + process.pid);
         this._debug('Created room');
         this._parent = parent;
         this.name = name;
         this._joined = 0;
-        this._messageBuffer = [];
-        this._handlers = [];
         if (parent._isMaster) {
             setInterval(this._drain, this._parent._conf.msgBufferDelay);
         }
