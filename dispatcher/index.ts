@@ -3,11 +3,14 @@ var bodyParser = require('body-parser');
 import _ = require('lodash');
 import dispatchHandler = require('./lib/dispatchHandler');
 import WorkersManager = require('./lib/workersManager');
+import {statsHandler} from './lib/stats';
 
 export interface workerHost {
   host: string;
   connections: number;
   id: string;
+  pubStats: any;
+  subStats: any;
 }
 
 interface DispatcherConf {
@@ -58,14 +61,15 @@ export class Dispatcher {
   }
 
   use(middleware) {
-    this._router.post('/', function (req: request, res, next) {
+    this._router.post('/join/:channelName', function (req: request, res, next) {
       req._chatUpData = req._chatUpData || {};
       middleware(req, req._chatUpData, next);
     });
   }
 
   register(app: express.Application) {
-    this._router.post('/', dispatchHandler(this));
+    this._router.post('/join/:channelName', dispatchHandler(this));
+    this._router.get('/stats/:channelName', statsHandler(this));
     app.use(this._router);
   }
 }

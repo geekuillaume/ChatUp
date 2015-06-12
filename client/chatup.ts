@@ -221,7 +221,7 @@ export class ChatUpProtocol {
   _getChatWorker = ():Promise<any> => {
     return new Promise((resolve, reject) => {
       this.status = 'gettingWorker';
-      var dispatcherRequest = request.post(this._conf.dispatcherURL);
+      var dispatcherRequest = request.post(this._conf.dispatcherURL + '/join/' + this._conf.room);
       if (this._error) {
         dispatcherRequest.send(this._error);
       }

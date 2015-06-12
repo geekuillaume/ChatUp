@@ -72,8 +72,11 @@ var ChatUpClient = (function () {
             if (!_.isObject(msg) || !_.isString(msg.room)) {
                 return cb({ status: 'error', err: "Wrong format" });
             }
-            if (_this._room) {
-                return cb({ status: 'error', err: "Already in a room" });
+            if (_this._room && _this._room.name === msg.room) {
+                return cb('ok');
+            }
+            if (_this._room && _this._room.name !== msg.room) {
+                return cb({ status: 'error', err: "Already in another room" });
             }
             _this._room = _this._parent._store.joinRoom(msg.room, _this);
             _this._debug('Joined room %s', _this._room.name);

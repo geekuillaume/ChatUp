@@ -3,6 +3,7 @@ var bodyParser = require('body-parser');
 var _ = require('lodash');
 var dispatchHandler = require('./lib/dispatchHandler');
 var WorkersManager = require('./lib/workersManager');
+var stats_1 = require('./lib/stats');
 var Dispatcher = (function () {
     function Dispatcher(conf) {
         var _this = this;
@@ -24,13 +25,14 @@ var Dispatcher = (function () {
         this._workersManager = new WorkersManager(this);
     }
     Dispatcher.prototype.use = function (middleware) {
-        this._router.post('/', function (req, res, next) {
+        this._router.post('/join/:channelName', function (req, res, next) {
             req._chatUpData = req._chatUpData || {};
             middleware(req, req._chatUpData, next);
         });
     };
     Dispatcher.prototype.register = function (app) {
-        this._router.post('/', dispatchHandler(this));
+        this._router.post('/join/:channelName', dispatchHandler(this));
+        this._router.get('/stats/:channelName', stats_1.statsHandler(this));
         app.use(this._router);
     };
     Dispatcher.defaultConf = {

@@ -23,9 +23,10 @@ function getNginxStats(worker) {
             }
             try {
                 var rawStats = JSON.parse(res.text);
-                var channelsStats = _.map(rawStats.infos, function (info) {
-                    return [info.channel, Number(info.subscribers)];
-                });
+                var channelsStats = _.reduce(rawStats.infos, function (stats, info) {
+                    stats[info.channel] = Number(info.subscribers);
+                    return stats;
+                }, {});
             }
             catch (err) {
                 debug('Error while parsing nginx stats', err);
@@ -93,11 +94,11 @@ function registerInRedis(worker, redisConnection, stats) {
 function startAlivePing(worker, redisConnection) {
     var interval = setInterval(function () {
         getNginxStats(worker).then(function (nginxStats) {
-            return registerInRedis(worker, redisConnection, { channels: nginxStats });
+            return registerInRedis(worker, redisConnection, nginxStats);
         }).catch(function (err) {
             console.log(err.stack);
             registerInRedis(worker, redisConnection, { err: 'nginxStats' });
         });
-    }, worker._conf.expireDelay * 0.8);
+    }, worker._conf.expireDelay * 0.5);
     interval.unref();
 }

@@ -1,3 +1,4 @@
+var stats_1 = require('./stats');
 var dispatchHandler = function (parent) {
     var handler = function (req, res) {
         var exclude;
@@ -5,8 +6,13 @@ var dispatchHandler = function (parent) {
             exclude = req.body.worker.id;
         }
         parent._workersManager.getAvailable({ excludeId: exclude }).then(function (worker) {
+            var channelStats = stats_1.getChannelStats(parent, req.param('channelName'));
             if (worker) {
-                res.send(worker);
+                res.send({
+                    host: worker.host,
+                    id: worker.id,
+                    channel: channelStats
+                });
             }
             else {
                 res.status(418).send({ error: 'No workers available' });

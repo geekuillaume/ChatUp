@@ -104,8 +104,11 @@ export class ChatUpClient {
     if (!_.isObject(msg) || !_.isString(msg.room)) {
       return cb({status: 'error', err: "Wrong format"});
     }
-    if (this._room) {
-      return cb({status: 'error', err: "Already in a room"});
+    if (this._room && this._room.name === msg.room) {
+      return cb('ok');
+    }
+    if (this._room && this._room.name !== msg.room) {
+      return cb({status: 'error', err: "Already in another room"});
     }
     this._room = this._parent._store.joinRoom(msg.room, this);
     this._debug('Joined room %s', this._room.name);

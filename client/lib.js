@@ -26246,7 +26246,7 @@ var ChatUpProtocol = (function () {
         this._getChatWorker = function () {
             return new Promise(function (resolve, reject) {
                 _this.status = 'gettingWorker';
-                var dispatcherRequest = request.post(_this._conf.dispatcherURL);
+                var dispatcherRequest = request.post(_this._conf.dispatcherURL + '/join/' + _this._conf.room);
                 if (_this._error) {
                     dispatcherRequest.send(_this._error);
                 }

@@ -30,7 +30,7 @@ var Store = (function () {
             return _.map(_this._rooms, function (room) {
                 return {
                     name: room.name,
-                    publishers: _.map(room._clients, _.property('_user.name'))
+                    publishers: _.map(room._clients, _.property('_user._public'))
                 };
             });
         };

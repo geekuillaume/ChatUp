@@ -1,5 +1,6 @@
 var _ = require('lodash');
 var redis = require('redis');
+var util = require('util');
 var debug = require('debug')('ChatUp:Dispatcher');
 var WorkersManager = (function () {
     function WorkersManager(parent) {
@@ -21,13 +22,18 @@ var WorkersManager = (function () {
                         _.each(_this._workers, function (worker, i) {
                             worker.id = workersName[i];
                             worker.connections = Number(worker.connections);
+                            worker.pubStats = JSON.parse(worker.pubStats);
+                            worker.subStats = JSON.parse(worker.subStats);
                         });
-                        console.log(_this._workers);
+                        debug('Workers:', util.inspect(_this._workers, { depth: null }));
                         debug('Refreshed and got %s workers', _this._workers.length);
                     }
                     setTimeout(_this._workerRefresh, _this._parent._conf.workerRefreshInterval).unref();
                 });
             });
+        };
+        this.getWorkers = function () {
+            return _this._workers;
         };
         this._parent = parent;
         this._redisConnection = redis.createClient(this._parent._conf.redis.port, this._parent._conf.redis.host);
@@ -38,7 +44,6 @@ var WorkersManager = (function () {
         var excludeId = _a.excludeId;
         return new Promise(function (resolve, reject) {
             var workers = _(_this._workers).reject({ id: excludeId }).sortBy('connections').value();
-            console.log(workers);
             var worker = workers[0];
             if (worker) {
                 debug('Found one worker at host %s', worker.host);

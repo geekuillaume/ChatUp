@@ -64,7 +64,7 @@ export class Store {
     return <any>_.map(this._rooms, (room) => {
       return {
         name: room.name,
-        publishers: _.map(room._clients, _.property('_user.name'))
+        publishers: _.map(room._clients, _.property('_user._public'))
       }
     });
   }

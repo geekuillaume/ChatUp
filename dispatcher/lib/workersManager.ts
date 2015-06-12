@@ -1,6 +1,7 @@
 import Dispatcher = require('../index');
 import _ = require('lodash');
 import redis = require('redis');
+import util = require('util');
 var debug = require('debug')('ChatUp:Dispatcher');
 
 class WorkersManager {
@@ -31,8 +32,10 @@ class WorkersManager {
           _.each(this._workers, (worker, i) => {
             worker.id = workersName[i];
             worker.connections = Number(worker.connections);
+            worker.pubStats = JSON.parse(worker.pubStats);
+            worker.subStats = JSON.parse(worker.subStats);
           });
-          console.log(this._workers);
+          debug('Workers:', util.inspect(this._workers, {depth: null}));
           debug('Refreshed and got %s workers', this._workers.length);
         }
         setTimeout(this._workerRefresh, this._parent._conf.workerRefreshInterval).unref();
@@ -44,7 +47,6 @@ class WorkersManager {
     return new Promise<Dispatcher.workerHost>((resolve, reject) => {
 
       var workers = <Dispatcher.workerHost[]>_(this._workers).reject({id: excludeId}).sortBy('connections').value();
-      console.log(workers);
 
       var worker = workers[0];
 
@@ -54,6 +56,10 @@ class WorkersManager {
       }
       resolve(worker); // If no worker, we send nothing and the caller now that no worker is available
     });
+  }
+
+  getWorkers = ():Dispatcher.workerHost[] => {
+    return this._workers;
   }
 };
 
