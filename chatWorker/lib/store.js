@@ -28,6 +28,9 @@ var Store = (function () {
         };
         this.getChannelStats = function () {
             return _.map(_this._rooms, function (room) {
+                if (!room) {
+                    return;
+                }
                 return {
                     name: room.name,
                     publishers: _.map(room._clients, _.property('_user._public'))
@@ -91,7 +94,7 @@ var Room = (function () {
             catch (e) {
                 return _this._debug('Message in Redis is not JSON', rawMessage);
             }
-            if (!_.isObject(message) || !_.isString(message.msg) || !_.isObject(message.user)) {
+            if (!_.isObject(message) || !_.isObject(message.user)) {
                 return _this._debug('Incorrect message in Redis', message);
             }
             _this._messageBuffer.push(message);
@@ -101,11 +104,22 @@ var Room = (function () {
             _this._debug('Join');
             _this._joined++;
             _this._clients.push(client);
+            _this._parent._pub(_this.name, {
+                user: client._user._public,
+                ev: 'join'
+            });
         };
         this.quit = function (client) {
             _this._debug('Quit');
             _this._joined--;
             _.remove(_this._clients, client);
+            _this._parent._pub(_this.name, {
+                user: client._user._public,
+                ev: 'leave'
+            });
+            if (_this._joined <= 0) {
+                _this._parent._rooms[_this.name] = null;
+            }
         };
         this._debug = debugFactory('ChatUp:Store:Room:' + name + ':' + process.pid);
         this._debug('Created room');

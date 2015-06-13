@@ -27,7 +27,9 @@ function getNginxStats(worker: ChatWorker): Promise<any> {
           try {
             var rawStats = JSON.parse(res.text);
             var channelsStats = _.reduce(rawStats.infos, (stats, info:any) => {
-              stats[info.channel] = Number(info.subscribers);
+              if (Number(info.subscribers) > 0) {
+                stats[info.channel] = Number(info.subscribers);
+              }
               return stats;
             }, {});
           } catch (err) {
@@ -81,7 +83,7 @@ function registerInRedis(worker: ChatWorker, redisConnection: redis.RedisClient,
       .hmset(keyName, {
         host: worker._conf.host,
         connections: _(worker._workers).map('stats').map('connections').sum(),
-        pubStats: JSON.stringify(_(worker._workers).map('stats').map('channels').flatten().reduce((stats, channel:any) => {
+        pubStats: JSON.stringify(_(worker._workers).map('stats').map('channels').flatten().compact().reduce((stats, channel:any) => {
           stats[channel.name] = _.union(stats[channel.name] || [], channel.publishers);
           return stats;
         }, {})),

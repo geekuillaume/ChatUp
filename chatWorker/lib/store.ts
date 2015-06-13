@@ -62,6 +62,7 @@ export class Store {
 
   getChannelStats = (): [{channel: string, publishers: number}] => {
     return <any>_.map(this._rooms, (room) => {
+      if (!room) {return}
       return {
         name: room.name,
         publishers: _.map(room._clients, _.property('_user._public'))
@@ -131,7 +132,7 @@ export class Room {
     } catch (e) {
       return this._debug('Message in Redis is not JSON', rawMessage);
     }
-    if (!_.isObject(message) || !_.isString(message.msg) || !_.isObject(message.user)) {
+    if (!_.isObject(message) || !_.isObject(message.user)) {
       return this._debug('Incorrect message in Redis', message);
     }
     this._messageBuffer.push(message);
@@ -142,10 +143,21 @@ export class Room {
     this._debug('Join');
     this._joined++;
     this._clients.push(client);
+    this._parent._pub(this.name, {
+      user: client._user._public,
+      ev: 'join'
+    });
   }
   quit = (client: ChatUpClient) => {
     this._debug('Quit');
     this._joined--;
     _.remove(this._clients, <any>client);
+    this._parent._pub(this.name, {
+      user: client._user._public,
+      ev: 'leave'
+    });
+    if (this._joined <= 0) {
+      this._parent._rooms[this.name] = null;
+    }
   }
 }

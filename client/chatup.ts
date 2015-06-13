@@ -13,12 +13,15 @@ interface ChatUpConf {
   room: string;
   socketIO: {};
   nginxPort: number;
+  userCountRefreshTimeout: number;
 }
 
 interface ChatUpStats {
   msgSent: number;
   msgReceived: number;
   latency: number;
+  pubCount: number;
+  subCount: number;
 }
 
 export class ChatUpProtocol {
@@ -30,7 +33,8 @@ export class ChatUpProtocol {
       timeout: 5000,
       reconnectionAttempts: 3
     },
-    nginxPort: 42632
+    nginxPort: 42632,
+    userCountRefreshTimeout: 20000
   }
 
   _conf: ChatUpConf;
@@ -38,19 +42,31 @@ export class ChatUpProtocol {
   _pushStream: any;
   _worker: any;
   _msgHandlers: Function[] = [];
+  _evHandlers: Function[] = [];
+  _userCountUpdateHandlers: Function[] = [];
   _error: {type: string; worker: Worker;};
   _dispatcherErrorCount = 0;
 
+  _userCountRefreshTimeout;
   _initPromise: Promise<any>;
 
-  _stats: ChatUpStats = {
+  stats: ChatUpStats = {
     msgSent: 0,
     msgReceived: 0,
-    latency:Infinity
+    latency:Infinity,
+    pubCount: 0,
+    subCount: 0
   };
 
   private _status: string = 'disconnected';
   private _statusChangeHandler: Function[] = [];
+
+  constructor(conf: ChatUpConf) {
+    this._conf = conf;
+    _.defaults(conf, ChatUpProtocol.defaultConf);
+    _.defaults(conf.socketIO, ChatUpProtocol.defaultConf.socketIO);
+    this._evHandlers.push(this._evUserCountHandler);
+  }
 
   get status():string {
     return this._status;
@@ -60,16 +76,6 @@ export class ChatUpProtocol {
     for (let handler of this._statusChangeHandler) {
       handler(status);
     }
-  }
-
-  constructor(conf: ChatUpConf) {
-    this._conf = conf;
-    _.defaults(conf, ChatUpProtocol.defaultConf);
-    _.defaults(conf.socketIO, ChatUpProtocol.defaultConf.socketIO);
-  }
-
-  get stats() {
-    return this._stats;
   }
 
   onStatusChange = (handler: Function) => {
@@ -86,6 +92,7 @@ export class ChatUpProtocol {
       .then(this._connectSub)
       .then(() => {
         this.status = 'connected';
+        this._updateUserCountLoop();
         if (this._conf.jwt)
           return this._connectPub();
         return this;
@@ -104,10 +111,10 @@ export class ChatUpProtocol {
   say = (message):Promise<any> => {
     return this._waitInit(() => {
       return new Promise<any>((resolve, reject) => {
-        this._stats.msgSent++;
+        this.stats.msgSent++;
         var start = now();
         this._pubSocket.emit('say', {msg: message}, (response) => {
-          this._stats.latency = now() - start;
+          this.stats.latency = now() - start;
           if (!this._isCorrectReponse(response, reject))
             return;
           return resolve();
@@ -120,15 +127,59 @@ export class ChatUpProtocol {
     this._msgHandlers.push(handler)
   }
 
+  onEv = (handler) => {
+    this._evHandlers.push(handler)
+  }
+
+  onUserCountUpdate = (handler) => {
+    this._userCountUpdateHandlers.push(handler)
+  }
+
+  _triggerUserCountUpdate = () => {
+    for (let handler of this._userCountUpdateHandlers) {
+      handler(this.stats);
+    }
+  }
+
+  _evUserCountHandler = (message) => {
+    if (message.ev === 'join') {
+      this.stats.pubCount++;
+    } else if (message.ev === 'leave') {
+      this.stats.pubCount--;
+    }
+    this._triggerUserCountUpdate();
+  }
+
+  _updateUserCountLoop = () => {
+    request.get(this._conf.dispatcherURL + '/stats/' + this._conf.room)
+    .end((err, res) => {
+      if (err) {
+        return;
+      }
+      this.stats.pubCount = res.body.pubCount;
+      // We are not connected so we need to add ourself to the count
+      this.stats.subCount = res.body.subCount;
+      this._triggerUserCountUpdate();
+      clearTimeout(this._userCountRefreshTimeout);
+      this._userCountRefreshTimeout = setTimeout(this._updateUserCountLoop, this._conf.userCountRefreshTimeout);
+    });
+  }
+
   _handleMessagesBuffer = (data) => {
     var messages;
     try {
       messages = JSON.parse(data);
     } catch (e) {}
     for (let message of messages) {
-      this._stats.msgReceived++;
-      for(let handler of this._msgHandlers) {
-        handler(message);
+      if (message.msg) {
+        this.stats.msgReceived++;
+        for(let handler of this._msgHandlers) {
+          handler(message);
+        }
+      } else if (message.ev) {
+        for(let handler of this._evHandlers) {
+          handler(message);
+        }
       }
     }
   }
@@ -242,6 +293,10 @@ export class ChatUpProtocol {
         this._error = null;
         this._dispatcherErrorCount = 0;
         this._worker = res.body;
+        this.stats.pubCount = res.body.channel.pubCount;
+        // We are not connected so we need to add ourself to the count
+        this.stats.subCount = res.body.channel.subCount + 1;
+        this._triggerUserCountUpdate();
         resolve(res.body);
       });
     });
@@ -253,6 +308,7 @@ export class ChatUp {
   static _template = `
     <div class="ChatUpContainer">
       <div class="ChatUpStatus">Status: <span class="ChatUpStatusText">Disconnected</span></div>
+      <div class="ChatUpCount">Guest: <span class="ChatUpGuestCount">0</span> - Connected Users: <span class="ChatUpConnectedCount">0</span></div>
       <div class="ChatUpMessages"></div>
       <div class="ChatUpFormContainer">
         <form class="ChatUpForm">
@@ -268,6 +324,8 @@ export class ChatUp {
 
   _el: HTMLElement;
   _statusTextEl: HTMLElement;
+  _guestCountEl: HTMLElement;
+  _connectedCountEl: HTMLElement;
   _messagesContainer: HTMLElement;
   _messageForm: HTMLElement;
   _messageInput: HTMLInputElement;
@@ -277,8 +335,15 @@ export class ChatUp {
     this._conf = conf;
     this._protocol = new ChatUpProtocol(this._conf);
     this._protocol.onMsg(this._onMsg);
+    this._protocol.onEv(this._onEv);
     this._protocol.onStatusChange(this._protocolStatusChange);
+    this._protocol.onUserCountUpdate(this._updateUserCount);
     this._initHTML();
+  }
+
+  _updateUserCount = (stats: ChatUpStats) => {
+    this._connectedCountEl.innerText = String(stats.pubCount);
+    this._guestCountEl.innerText = String(stats.subCount - stats.pubCount);
   }
 
   _protocolStatusChange = (status: string) => {
@@ -306,6 +371,8 @@ export class ChatUp {
   _initHTML = () => {
     this._el.innerHTML = ChatUp._template;
     this._statusTextEl = findClass(this._el, 'ChatUpStatusText');
+    this._guestCountEl = findClass(this._el, 'ChatUpGuestCount');
+    this._connectedCountEl = findClass(this._el, 'ChatUpConnectedCount');
     this._messageForm = findClass(this._el, 'ChatUpForm');
     this._messageInput = <HTMLInputElement>findClass(this._el, 'ChatUpInput');
     this._messagesContainer = findClass(this._el, 'ChatUpMessages');
@@ -331,6 +398,25 @@ export class ChatUp {
         '<p class="ChatUpMessageSender">' + messageData.user.name + '</p>',
         '<p class="ChatUpMessageContent">' + messageData.msg + '</p>',
       '</div>'].join('\n');
+    if (atBottom) {
+      this._messagesContainer.scrollTop = Infinity
+    }
+  }
+
+  _onEv = (messageData) => {
+    var atBottom = this._messagesContainer.scrollTop === this._messagesContainer.scrollHeight - this._messagesContainer.offsetHeight
+    if (messageData.ev === 'join') {
+      this._messagesContainer.innerHTML += [
+        '<div class="ChatUpMessage">',
+          '<p class="ChatUpMessageSender">' + messageData.user.name + ' joined</p>',
+        '</div>'].join('\n');
+    }
+    if (messageData.ev === 'leave') {
+      this._messagesContainer.innerHTML += [
+        '<div class="ChatUpMessage">',
+          '<p class="ChatUpMessageSender">' + messageData.user.name + ' left</p>',
+        '</div>'].join('\n');
+    }
     if (atBottom) {
       this._messagesContainer.scrollTop = Infinity
     }

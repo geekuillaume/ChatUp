@@ -24,7 +24,9 @@ function getNginxStats(worker) {
             try {
                 var rawStats = JSON.parse(res.text);
                 var channelsStats = _.reduce(rawStats.infos, function (stats, info) {
-                    stats[info.channel] = Number(info.subscribers);
+                    if (Number(info.subscribers) > 0) {
+                        stats[info.channel] = Number(info.subscribers);
+                    }
                     return stats;
                 }, {});
             }
@@ -76,7 +78,7 @@ function registerInRedis(worker, redisConnection, stats) {
             .hmset(keyName, {
             host: worker._conf.host,
             connections: _(worker._workers).map('stats').map('connections').sum(),
-            pubStats: JSON.stringify(_(worker._workers).map('stats').map('channels').flatten().reduce(function (stats, channel) {
+            pubStats: JSON.stringify(_(worker._workers).map('stats').map('channels').flatten().compact().reduce(function (stats, channel) {
                 stats[channel.name] = _.union(stats[channel.name] || [], channel.publishers);
                 return stats;
             }, {})),

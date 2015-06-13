@@ -3,7 +3,7 @@
   flex-direction: column;
   height: 100%;
 }
-.ChatUpStatus {
+.ChatUpStatus, .ChatUpCount {
   font-size: 10px;
   color: #737373;
   flex-shrink: 0;
