@@ -1,5 +1,6 @@
 import socketio = require('socket.io');
 import http = require('http');
+import https = require('https');
 import jwt = require('jsonwebtoken');
 var redisAdaptater = require('socket.io-redis');
 var debugFactory = require('debug');
@@ -16,7 +17,7 @@ stickyClient(function(conf) {
 export class WSHandler {
   _io: SocketIO.Server;
   _conf:ChatWorkerConf;
-  _app: http.Server;
+  _app: any;
   _sockets: ChatUpClient[];
   _debug: Function;
   _store: Store;
@@ -25,7 +26,11 @@ export class WSHandler {
     this._debug = debugFactory('ChatUp:ChatWorker:slave:' + process.pid);
     this._debug('Slave init');
     this._conf = conf;
-    this._app = http.createServer();
+    if (conf.ssl) {
+      this._app = https.createServer(conf.ssl);
+    } else {
+      this._app = http.createServer();
+    }
     this._io = socketio(this._app, {
       serverClient: false
     });

@@ -1,5 +1,6 @@
 var socketio = require('socket.io');
 var http = require('http');
+var https = require('https');
 var jwt = require('jsonwebtoken');
 var redisAdaptater = require('socket.io-redis');
 var debugFactory = require('debug');
@@ -31,7 +32,12 @@ var WSHandler = (function () {
         this._debug = debugFactory('ChatUp:ChatWorker:slave:' + process.pid);
         this._debug('Slave init');
         this._conf = conf;
-        this._app = http.createServer();
+        if (conf.ssl) {
+            this._app = https.createServer(conf.ssl);
+        }
+        else {
+            this._app = http.createServer();
+        }
         this._io = socketio(this._app, {
             serverClient: false
         });

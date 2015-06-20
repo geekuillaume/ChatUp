@@ -59,7 +59,7 @@ function validateWorkerInfos(worker: ChatWorker): Promise<void> {
   }).then(function() {
     worker._conf.host = url.format({
       hostname: worker._conf.hostname,
-      protocol: 'http',
+      protocol: worker._conf.ssl ? 'https': 'http',
       port: worker._conf.port.toString()
     })
   });

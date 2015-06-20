@@ -29,6 +29,10 @@ export interface ChatWorkerConf {
     options?: {
       algorithms: string[];
     }
+  },
+  ssl?: {
+    key: string;
+    cert: string;
   }
 };
 
