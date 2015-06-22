@@ -46,7 +46,7 @@ var ChatWorker = (function () {
         expireDelay: 2000,
         nginx: {
             host: '127.0.0.1',
-            port: 42632
+            port: 42631
         }
     };
     return ChatWorker;
