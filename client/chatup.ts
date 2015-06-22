@@ -211,7 +211,8 @@ export class ChatUpProtocol {
         host: url.parse(this._worker.host).hostname,
         port: this._conf.nginxPort,
         pingtimeout: 1000,
-        modes: 'websocket|eventsource|longpolling'
+        modes: 'websocket|eventsource|longpolling',
+        useSSL: (window.location.protocol == 'https:')
       });
       this._pushStream.onmessage = this._handleMessagesBuffer;
       this._pushStream.addChannel(this._conf.room);

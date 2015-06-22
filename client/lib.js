@@ -26233,7 +26233,8 @@ var ChatUpProtocol = (function () {
                     host: url.parse(_this._worker.host).hostname,
                     port: _this._conf.nginxPort,
                     pingtimeout: 1000,
-                    modes: 'websocket|eventsource|longpolling'
+                    modes: 'websocket|eventsource|longpolling',
+                    useSSL: (window.location.protocol == 'https:')
                 });
                 _this._pushStream.onmessage = _this._handleMessagesBuffer;
                 _this._pushStream.addChannel(_this._conf.room);
