@@ -19,8 +19,8 @@ var conf = {
   },
   // You can also use SSL, just provide you cert and key
   /*ssl: {
-    key: fs.readFileSync('./test/server.key'),
-    cert: fs.readFileSync('./test/server.crt')
+    key: fs.readFileSync('./test/server.key').toString(),
+    cert: fs.readFileSync('./test/server.crt').toString()
   }*/
 };
 
