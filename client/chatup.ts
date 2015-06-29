@@ -232,6 +232,8 @@ export class ChatUpProtocol {
         } else {
           this.status = 'workerSwitch';
           this._error = {type: 'workerSubConnect', worker: this._worker};
+          this._pushStream.disconnect();
+          this._pushStream = null;
           this.init();
         }
       }

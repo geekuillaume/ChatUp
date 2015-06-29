@@ -169,6 +169,8 @@ var ChatUpProtocol = (function () {
                     else {
                         _this.status = 'workerSwitch';
                         _this._error = { type: 'workerSubConnect', worker: _this._worker };
+                        _this._pushStream.disconnect();
+                        _this._pushStream = null;
                         _this.init();
                     }
                 };
