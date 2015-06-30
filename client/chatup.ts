@@ -207,6 +207,9 @@ export class ChatUpProtocol {
 
   _connectSub = ():Promise<void> => {
     return new Promise<void>((resolve, reject) => {
+      if (this._pushStream) {
+        this._pushStream.disconnect()
+      }
       this._pushStream = new PushStream.PushStream({
         host: url.parse(this._worker.host).hostname,
         port: this._conf.nginxPort,

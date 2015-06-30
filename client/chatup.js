@@ -143,6 +143,9 @@ var ChatUpProtocol = (function () {
         };
         this._connectSub = function () {
             return new Promise(function (resolve, reject) {
+                if (_this._pushStream) {
+                    _this._pushStream.disconnect();
+                }
                 _this._pushStream = new PushStream.PushStream({
                     host: url.parse(_this._worker.host).hostname,
                     port: _this._conf.nginxPort,
