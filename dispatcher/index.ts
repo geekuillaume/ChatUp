@@ -1,6 +1,9 @@
+import _ = require('lodash');
+import https = require('https');
+import http = require('http');
+import cluster = require('cluster');
 import express = require('express');
 var bodyParser = require('body-parser');
-import _ = require('lodash');
 import dispatchHandler = require('./lib/dispatchHandler');
 import WorkersManager = require('./lib/workersManager');
 import {statsHandler} from './lib/stats';
@@ -20,6 +23,11 @@ interface DispatcherConf {
   };
   origins?: string;
   workerRefreshInterval?: number;
+  threads?: number;
+  ssl?: {
+    key: string;
+    cert: string;
+  }
 }
 
 interface request extends express.Request {
@@ -33,20 +41,32 @@ export class Dispatcher {
       host: "127.0.0.1"
     },
     origins: '*',
-    workerRefreshInterval: 2000
+    workerRefreshInterval: 2000,
+    threads: require('os').cpus().length
   };
 
-  _router: express.Router;
+  _app: express.Application;
   _conf: DispatcherConf;
   _workersManager: WorkersManager;
 
   constructor(conf: DispatcherConf = {}) {
-    this._router = express.Router();
-    this._router.use(bodyParser.json());
     this._conf = _.defaults(conf, Dispatcher.defaultConf);
-    this._router.use(this._handleError);
-    this._router.use(this._allowCORS);
+    if (cluster.isMaster) {
+      for (var i = 0; i < this._conf.threads; i += 1) {
+        cluster.fork();
+      }
+      cluster.on('exit', function (worker) {
+        console.log('Worker ' + worker.id + ' died, restarting another one');
+        cluster.fork();
+      });
+    }
+    this._app = express();
+    this._app.use(bodyParser.json());
+    this._app.use(this._handleError);
+    this._app.use(this._allowCORS);
     this._workersManager = new WorkersManager(this);
+    this._app.post('/join/:channelName', dispatchHandler(this));
+    this._app.get('/stats/:channelName', statsHandler(this));
   }
 
   _handleError:express.ErrorRequestHandler = function(err, req, res, next) {
@@ -60,16 +80,16 @@ export class Dispatcher {
     next();
   }
 
-  use(middleware) {
-    this._router.post('/join/:channelName', function (req: request, res, next) {
-      req._chatUpData = req._chatUpData || {};
-      middleware(req, req._chatUpData, next);
-    });
-  }
-
-  register(app: express.Application) {
-    this._router.post('/join/:channelName', dispatchHandler(this));
-    this._router.get('/stats/:channelName', statsHandler(this));
-    app.use(this._router);
+  listen(port: number, callback: Function) {
+    if (cluster.isMaster) {
+      return;
+    }
+    var server;
+    if (this._conf.ssl) {
+      server = https.createServer(this._conf.ssl, this._app);
+    } else {
+      server = http.createServer(<any> this._app);
+    }
+    server.listen(port, callback);
   }
 }

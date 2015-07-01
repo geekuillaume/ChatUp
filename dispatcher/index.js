@@ -1,6 +1,9 @@
+var _ = require('lodash');
+var https = require('https');
+var http = require('http');
+var cluster = require('cluster');
 var express = require('express');
 var bodyParser = require('body-parser');
-var _ = require('lodash');
 var dispatchHandler = require('./lib/dispatchHandler');
 var WorkersManager = require('./lib/workersManager');
 var stats_1 = require('./lib/stats');
@@ -17,23 +20,36 @@ var Dispatcher = (function () {
             res.header('Access-Control-Allow-Headers', 'Content-Type,X-Requested-With');
             next();
         };
-        this._router = express.Router();
-        this._router.use(bodyParser.json());
         this._conf = _.defaults(conf, Dispatcher.defaultConf);
-        this._router.use(this._handleError);
-        this._router.use(this._allowCORS);
+        if (cluster.isMaster) {
+            for (var i = 0; i < this._conf.threads; i += 1) {
+                cluster.fork();
+            }
+            cluster.on('exit', function (worker) {
+                console.log('Worker ' + worker.id + ' died, restarting another one');
+                cluster.fork();
+            });
+        }
+        this._app = express();
+        this._app.use(bodyParser.json());
+        this._app.use(this._handleError);
+        this._app.use(this._allowCORS);
         this._workersManager = new WorkersManager(this);
+        this._app.post('/join/:channelName', dispatchHandler(this));
+        this._app.get('/stats/:channelName', stats_1.statsHandler(this));
     }
-    Dispatcher.prototype.use = function (middleware) {
-        this._router.post('/join/:channelName', function (req, res, next) {
-            req._chatUpData = req._chatUpData || {};
-            middleware(req, req._chatUpData, next);
-        });
-    };
-    Dispatcher.prototype.register = function (app) {
-        this._router.post('/join/:channelName', dispatchHandler(this));
-        this._router.get('/stats/:channelName', stats_1.statsHandler(this));
-        app.use(this._router);
+    Dispatcher.prototype.listen = function (port, callback) {
+        if (cluster.isMaster) {
+            return;
+        }
+        var server;
+        if (this._conf.ssl) {
+            server = https.createServer(this._conf.ssl, this._app);
+        }
+        else {
+            server = http.createServer(this._app);
+        }
+        server.listen(port, callback);
     };
     Dispatcher.defaultConf = {
         redis: {
@@ -41,7 +57,8 @@ var Dispatcher = (function () {
             host: "127.0.0.1"
         },
         origins: '*',
-        workerRefreshInterval: 2000
+        workerRefreshInterval: 2000,
+        threads: require('os').cpus().length
     };
     return Dispatcher;
 })();

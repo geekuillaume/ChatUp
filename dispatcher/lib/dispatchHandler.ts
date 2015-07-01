@@ -1,6 +1,7 @@
 import express = require('express');
 import Dispatcher = require('../index');
 import {getChannelStats} from './stats';
+var debug = require('debug')('ChatUp:Dispatcher');
 
 var dispatchHandler = function (parent: Dispatcher.Dispatcher) {
 
@@ -11,20 +12,23 @@ var dispatchHandler = function (parent: Dispatcher.Dispatcher) {
       exclude = req.body.worker.id;
     }
 
+    debug('Getting an available worker')
     parent._workersManager.getAvailable({excludeId: exclude}).then(function(worker) {
-      var channelStats = getChannelStats(parent, req.param('channelName'));
+      var channelStats = getChannelStats(parent, req.params.channelName);
       if (worker) {
+        debug('Sending worker %s at %s', worker.id, worker.host);
         res.send({
           host: worker.host,
           id: worker.id,
           channel: channelStats
         });
       } else {
+        debug('No worker available')
         // A dispatcher without workers is just like a teapot
         res.status(418).send({error: 'No workers available'});
       }
     }).catch(function(err) {
-      console.log('Got:', err);
+      debug('Error while getting worker', err);
       res.status(500).send(err);
     });
 

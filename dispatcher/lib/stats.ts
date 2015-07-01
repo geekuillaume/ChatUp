@@ -33,6 +33,5 @@ export function getChannelClients(parent: Dispatcher, channelName: string, optio
   var workers = parent._workersManager.getWorkers();
 
   var clients = _(workers).map(_.property('pubStats.' + channelName)).flatten().value();
-  console.log(clients, options);
   return _.slice(clients, options.skip, options.skip + options.limit);
 }
