@@ -24,7 +24,7 @@ exports.getChannelStats = getChannelStats;
 function getChannelClients(parent, channelName, options) {
     if (options === void 0) { options = { limit: 50, skip: 0 }; }
     var workers = parent._workersManager.getWorkers();
-    var clients = _(workers).map(_.property('pubStats.' + channelName)).flatten().value();
+    var clients = _(workers).map(_.property('pubStats.' + channelName)).flatten().compact().value();
     return _.slice(clients, options.skip, options.skip + options.limit);
 }
 exports.getChannelClients = getChannelClients;

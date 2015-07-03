@@ -32,6 +32,6 @@ export function getChannelStats(parent: Dispatcher, channelName: string) {
 export function getChannelClients(parent: Dispatcher, channelName: string, options: {limit: number, skip: number} = {limit: 50, skip: 0}) {
   var workers = parent._workersManager.getWorkers();
 
-  var clients = _(workers).map(_.property('pubStats.' + channelName)).flatten().value();
+  var clients = _(workers).map(_.property('pubStats.' + channelName)).flatten().compact().value();
   return _.slice(clients, options.skip, options.skip + options.limit);
 }
