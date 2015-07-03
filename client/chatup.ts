@@ -31,7 +31,8 @@ export class ChatUpProtocol {
     room: 'roomDefault',
     socketIO: {
       timeout: 5000,
-      reconnectionAttempts: 3
+      reconnectionAttempts: 3,
+      forceNew: true
     },
     nginxPort: 42632,
     userCountRefreshTimeout: 20000
@@ -103,7 +104,10 @@ export class ChatUpProtocol {
   }
 
   authenticate = () => {
-    return this._waitInit(() => {
+    return this._waitInit(():any => {
+      if (this._pubSocket) { // already connected to pub worker
+        return true;
+      }
       return this._connectPub();
     });
   }
@@ -246,15 +250,21 @@ export class ChatUpProtocol {
 
   _connectPub = ():Promise<any> => {
     return new Promise((resolve, reject) => {
-      this._pubSocket = this._pubSocket || io(this._worker.host, this._conf.socketIO);
+      if (this._pubSocket) {
+        this._pubSocket.disconnect();
+        this._pubSocket = null;
+      }
+      this._pubSocket = io(this._worker.host, this._conf.socketIO);
       this._pubSocket.emit('auth', this._conf.jwt, (response) => {
         if (!this._isCorrectReponse(response, reject)) {
           this.status = 'authError';
           return;
         }
         this._pubSocket.emit('join', {room: this._conf.room}, (response) => {
-          if (!this._isCorrectReponse(response, reject))
+          if (!this._isCorrectReponse(response, reject)) {
+            this.status = 'authError';
             return;
+          }
           this.status = 'authenticated';
           return resolve();
         });
@@ -430,7 +440,7 @@ export class ChatUp {
 
   authenticate(jwt):Promise<any> {
     if (this._protocol.status !== 'connected' && this._protocol.status !== 'authError') {
-      alert('You need to be connected and not already authenticated to do that');
+      console.error('You need to be connected and not already authenticated to do that');
     } else {
       this._conf.jwt = jwt;
       return this._protocol.authenticate();

@@ -45,6 +45,9 @@ var ChatUpProtocol = (function () {
         };
         this.authenticate = function () {
             return _this._waitInit(function () {
+                if (_this._pubSocket) {
+                    return true;
+                }
                 return _this._connectPub();
             });
         };
@@ -182,15 +185,21 @@ var ChatUpProtocol = (function () {
         };
         this._connectPub = function () {
             return new Promise(function (resolve, reject) {
-                _this._pubSocket = _this._pubSocket || io(_this._worker.host, _this._conf.socketIO);
+                if (_this._pubSocket) {
+                    _this._pubSocket.disconnect();
+                    _this._pubSocket = null;
+                }
+                _this._pubSocket = io(_this._worker.host, _this._conf.socketIO);
                 _this._pubSocket.emit('auth', _this._conf.jwt, function (response) {
                     if (!_this._isCorrectReponse(response, reject)) {
                         _this.status = 'authError';
                         return;
                     }
                     _this._pubSocket.emit('join', { room: _this._conf.room }, function (response) {
-                        if (!_this._isCorrectReponse(response, reject))
+                        if (!_this._isCorrectReponse(response, reject)) {
+                            _this.status = 'authError';
                             return;
+                        }
                         _this.status = 'authenticated';
                         return resolve();
                     });
@@ -264,7 +273,8 @@ var ChatUpProtocol = (function () {
         room: 'roomDefault',
         socketIO: {
             timeout: 5000,
-            reconnectionAttempts: 3
+            reconnectionAttempts: 3,
+            forceNew: true
         },
         nginxPort: 42632,
         userCountRefreshTimeout: 20000
@@ -369,7 +379,7 @@ var ChatUp = (function () {
     }
     ChatUp.prototype.authenticate = function (jwt) {
         if (this._protocol.status !== 'connected' && this._protocol.status !== 'authError') {
-            alert('You need to be connected and not already authenticated to do that');
+            console.error('You need to be connected and not already authenticated to do that');
         }
         else {
             this._conf.jwt = jwt;
