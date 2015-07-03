@@ -155,18 +155,19 @@ export class ChatUpProtocol {
   }
 
   _updateUserCountLoop = () => {
-    request.get(this._conf.dispatcherURL + '/stats/' + this._conf.room)
-    .end((err, res) => {
-      if (err) {
-        return;
-      }
-      this.stats.pubCount = res.body.pubCount;
-      // We are not connected so we need to add ourself to the count
-      this.stats.subCount = res.body.subCount;
-      this._triggerUserCountUpdate();
-      clearTimeout(this._userCountRefreshTimeout);
-      this._userCountRefreshTimeout = setTimeout(this._updateUserCountLoop, this._conf.userCountRefreshTimeout);
-    });
+    setTimeout(() => {
+      request.get(this._conf.dispatcherURL + '/stats/' + this._conf.room)
+      .end((err, res) => {
+        this._updateUserCountLoop()
+        if (err) {
+          return;
+        }
+        this.stats.pubCount = res.body.pubCount;
+        // We are not connected so we need to add ourself to the count
+        this.stats.subCount = res.body.subCount;
+        this._triggerUserCountUpdate();
+      });
+    }, this._conf.userCountRefreshTimeout)
   }
 
   _handleMessagesBuffer = (data) => {
@@ -358,6 +359,7 @@ export class ChatUp {
   }
 
   _updateUserCount = (stats: ChatUpStats) => {
+    console.log(stats)
     this._connectedCountEl.innerText = String(stats.pubCount);
     this._guestCountEl.innerText = String(stats.subCount - stats.pubCount);
   }

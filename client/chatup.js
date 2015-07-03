@@ -90,17 +90,18 @@ var ChatUpProtocol = (function () {
             _this._triggerUserCountUpdate();
         };
         this._updateUserCountLoop = function () {
-            request.get(_this._conf.dispatcherURL + '/stats/' + _this._conf.room)
-                .end(function (err, res) {
-                if (err) {
-                    return;
-                }
-                _this.stats.pubCount = res.body.pubCount;
-                _this.stats.subCount = res.body.subCount;
-                _this._triggerUserCountUpdate();
-                clearTimeout(_this._userCountRefreshTimeout);
-                _this._userCountRefreshTimeout = setTimeout(_this._updateUserCountLoop, _this._conf.userCountRefreshTimeout);
-            });
+            setTimeout(function () {
+                request.get(_this._conf.dispatcherURL + '/stats/' + _this._conf.room)
+                    .end(function (err, res) {
+                    _this._updateUserCountLoop();
+                    if (err) {
+                        return;
+                    }
+                    _this.stats.pubCount = res.body.pubCount;
+                    _this.stats.subCount = res.body.subCount;
+                    _this._triggerUserCountUpdate();
+                });
+            }, _this._conf.userCountRefreshTimeout);
         };
         this._handleMessagesBuffer = function (data) {
             var messages;
@@ -286,6 +287,7 @@ var ChatUp = (function () {
     function ChatUp(el, conf) {
         var _this = this;
         this._updateUserCount = function (stats) {
+            console.log(stats);
             _this._connectedCountEl.innerText = String(stats.pubCount);
             _this._guestCountEl.innerText = String(stats.subCount - stats.pubCount);
         };
