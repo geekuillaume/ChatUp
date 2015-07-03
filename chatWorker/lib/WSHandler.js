@@ -81,6 +81,9 @@ var ChatUpClient = (function () {
             if (_this._room && _this._room.name === msg.room) {
                 return cb('ok');
             }
+            if (!_this._user) {
+                return cb({ status: 'error', err: 'You need to be authenticated to join a room' });
+            }
             if (_this._room && _this._room.name !== msg.room) {
                 return cb({ status: 'error', err: "Already in another room" });
             }

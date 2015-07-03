@@ -112,6 +112,9 @@ export class ChatUpClient {
     if (this._room && this._room.name === msg.room) {
       return cb('ok');
     }
+    if (!this._user) {
+      return cb({status: 'error', err: 'You need to be authenticated to join a room'})
+    }
     if (this._room && this._room.name !== msg.room) {
       return cb({status: 'error', err: "Already in another room"});
     }
