@@ -13,6 +13,7 @@ var ChatUpProtocol = (function () {
         this._evHandlers = [];
         this._userCountUpdateHandlers = [];
         this._dispatcherErrorCount = 0;
+        this._pubConnected = false;
         this.stats = {
             msgSent: 0,
             msgReceived: 0,
@@ -166,6 +167,7 @@ var ChatUpProtocol = (function () {
                 };
                 var retryCount = 0;
                 _this._pushStream.onerror = function (err) {
+                    console.error(err);
                     retryCount++;
                     if (retryCount <= 2) {
                         _this.status = 'subConnectError';
@@ -187,7 +189,9 @@ var ChatUpProtocol = (function () {
         this._connectPub = function () {
             return new Promise(function (resolve, reject) {
                 if (_this._pubSocket) {
+                    _this._pubConnected = false;
                     _this._pubSocket.disconnect();
+                    _this._pubSocket.destroy();
                     _this._pubSocket = null;
                 }
                 _this._pubSocket = io(_this._worker.host, _this._conf.socketIO);
@@ -201,6 +205,7 @@ var ChatUpProtocol = (function () {
                             _this.status = 'authError';
                             return;
                         }
+                        _this._pubConnected = true;
                         _this.status = 'authenticated';
                         return resolve();
                     });
@@ -209,13 +214,16 @@ var ChatUpProtocol = (function () {
                     reject(new Error('Couldn\'t connect to websocket pub'));
                 });
                 _this._pubSocket.on('connect_error', function (err) {
+                    _this._pubConnected = false;
                     _this.status = 'pubConnectError';
                     rejectFct(err);
                 });
                 _this._pubSocket.on('reconnect_failed', function () {
+                    _this._pubConnected = false;
                     _this.status = 'workerSwitch';
                     _this._error = { type: 'workerPubConnect', worker: _this._worker };
-                    _this._pubSocket = null;
+                    _this._pubSocket.disconnect();
+                    _this._pubSocket.destroy();
                     _this.init();
                 });
             });
@@ -335,8 +343,8 @@ var ChatUp = (function () {
             if (_this._messageInput.value.length == 0) {
                 return;
             }
-            if (_this._protocol.status !== 'authenticated') {
-                return alert('You need to be authenticated to send a message');
+            if (!_this._protocol._pubConnected) {
+                return console.error('You need to be authenticated to send a message');
             }
             _this._protocol.say(_this._messageInput.value).catch(function (err) { console.error(err); });
             _this._messageInput.value = "";

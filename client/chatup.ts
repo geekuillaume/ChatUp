@@ -47,6 +47,7 @@ export class ChatUpProtocol {
   _userCountUpdateHandlers: Function[] = [];
   _error: {type: string; worker: Worker;};
   _dispatcherErrorCount = 0;
+  _pubConnected = false;
 
   _userCountRefreshTimeout;
   _initPromise: Promise<any>;
@@ -231,6 +232,7 @@ export class ChatUpProtocol {
       }
       var retryCount = 0;
       this._pushStream.onerror = (err) => {
+        console.error(err);
         retryCount++;
         if (retryCount <= 2) {
           this.status = 'subConnectError'
@@ -252,7 +254,9 @@ export class ChatUpProtocol {
   _connectPub = ():Promise<any> => {
     return new Promise((resolve, reject) => {
       if (this._pubSocket) {
+        this._pubConnected = false;
         this._pubSocket.disconnect();
+        this._pubSocket.destroy();
         this._pubSocket = null;
       }
       this._pubSocket = io(this._worker.host, this._conf.socketIO);
@@ -266,6 +270,7 @@ export class ChatUpProtocol {
             this.status = 'authError';
             return;
           }
+          this._pubConnected = true;
           this.status = 'authenticated';
           return resolve();
         });
@@ -274,13 +279,16 @@ export class ChatUpProtocol {
         reject(new Error('Couldn\'t connect to websocket pub'));
       });
       this._pubSocket.on('connect_error', (err) => {
+        this._pubConnected = false;
         this.status = 'pubConnectError'
         rejectFct(err);
       });
       this._pubSocket.on('reconnect_failed', () => {
+        this._pubConnected = false;
         this.status = 'workerSwitch';
         this._error = {type: 'workerPubConnect', worker: this._worker};
-        this._pubSocket = null;
+        this._pubSocket.disconnect();
+        this._pubSocket.destroy();
         this.init();
       })
     });
@@ -402,8 +410,8 @@ export class ChatUp {
     if (this._messageInput.value.length == 0) {
       return;
     }
-    if (this._protocol.status !== 'authenticated') {
-      return alert('You need to be authenticated to send a message');
+    if (!this._protocol._pubConnected) {
+      return console.error('You need to be authenticated to send a message');
     }
     this._protocol.say(this._messageInput.value).catch(function(err) {console.error(err)});
     this._messageInput.value = "";
