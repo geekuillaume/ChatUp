@@ -99,8 +99,12 @@ export class ChatUpClient {
           this._debug('Authentication error: Wrong JWT', msg, err);
           return cb({status: 'error', err: "Wrong JWT"});
         }
+        if (!_.isObject(decoded._public)) {
+          this._debug('Authentication error: Wrong JWT content', msg, decoded);
+          return cb({status: 'error', err: "Wrong JWT content"});
+        }
         this._user = decoded;
-        this._debug('Authentified');
+        this._debug('Authentified', decoded);
         cb('ok');
     });
   }

@@ -69,8 +69,12 @@ var ChatUpClient = (function () {
                     _this._debug('Authentication error: Wrong JWT', msg, err);
                     return cb({ status: 'error', err: "Wrong JWT" });
                 }
+                if (!_.isObject(decoded._public)) {
+                    _this._debug('Authentication error: Wrong JWT content', msg, decoded);
+                    return cb({ status: 'error', err: "Wrong JWT content" });
+                }
                 _this._user = decoded;
-                _this._debug('Authentified');
+                _this._debug('Authentified', decoded);
                 cb('ok');
             });
         };
