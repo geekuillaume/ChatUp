@@ -49,6 +49,8 @@ export class ChatUpProtocol {
   _dispatcherErrorCount = 0;
   _pubConnected = false;
 
+  _lastReceivedMessageTime = new Date(0);
+
   _userCountRefreshTimeout;
   _initPromise: Promise<any>;
 
@@ -172,9 +174,10 @@ export class ChatUpProtocol {
   }
 
   _handleMessagesBuffer = (data) => {
+    this._lastReceivedMessageTime = new Date(data.substring(0, _.indexOf(data, '.')));
     var messages;
     try {
-      messages = JSON.parse(data);
+      messages = JSON.parse(data.substring(_.indexOf(data, '.') + 1));
     } catch (e) {}
     for (let message of messages) {
       if (message.msg) {
@@ -221,7 +224,9 @@ export class ChatUpProtocol {
         port: this._conf.nginxPort,
         pingtimeout: 1000,
         modes: 'websocket|eventsource|longpolling',
-        useSSL: (window.location.protocol == 'https:')
+        useSSL: (window.location.protocol == 'https:'),
+        messagesPublishedAfter: this._lastReceivedMessageTime,
+        messagesControlByArgument: true
       });
       this._pushStream.onmessage = this._handleMessagesBuffer;
       this._pushStream.addChannel(this._conf.room);
@@ -237,6 +242,7 @@ export class ChatUpProtocol {
         if (retryCount <= 2) {
           this.status = 'subConnectError'
           setTimeout(() => {
+            this._pushStream._lastModified = this._lastReceivedMessageTime;
             this._pushStream.connect();
           }, 2000);
         } else {
@@ -367,7 +373,6 @@ export class ChatUp {
   }
 
   _updateUserCount = (stats: ChatUpStats) => {
-    console.log(stats)
     this._connectedCountEl.innerText = String(stats.pubCount);
     this._guestCountEl.innerText = String(stats.subCount - stats.pubCount);
   }

@@ -26100,6 +26100,7 @@ var ChatUpProtocol = (function () {
         this._userCountUpdateHandlers = [];
         this._dispatcherErrorCount = 0;
         this._pubConnected = false;
+        this._lastReceivedMessageTime = new Date(0);
         this.stats = {
             msgSent: 0,
             msgReceived: 0,
@@ -26191,9 +26192,10 @@ var ChatUpProtocol = (function () {
             }, _this._conf.userCountRefreshTimeout);
         };
         this._handleMessagesBuffer = function (data) {
+            _this._lastReceivedMessageTime = new Date(data.substring(0, _.indexOf(data, '.')));
             var messages;
             try {
-                messages = JSON.parse(data);
+                messages = JSON.parse(data.substring(_.indexOf(data, '.') + 1));
             }
             catch (e) { }
             for (var _i = 0; _i < messages.length; _i++) {
@@ -26242,7 +26244,9 @@ var ChatUpProtocol = (function () {
                     port: _this._conf.nginxPort,
                     pingtimeout: 1000,
                     modes: 'websocket|eventsource|longpolling',
-                    useSSL: (window.location.protocol == 'https:')
+                    useSSL: (window.location.protocol == 'https:'),
+                    messagesPublishedAfter: _this._lastReceivedMessageTime,
+                    messagesControlByArgument: true
                 });
                 _this._pushStream.onmessage = _this._handleMessagesBuffer;
                 _this._pushStream.addChannel(_this._conf.room);
@@ -26258,6 +26262,7 @@ var ChatUpProtocol = (function () {
                     if (retryCount <= 2) {
                         _this.status = 'subConnectError';
                         setTimeout(function () {
+                            _this._pushStream._lastModified = _this._lastReceivedMessageTime;
                             _this._pushStream.connect();
                         }, 2000);
                     }
@@ -26381,7 +26386,6 @@ var ChatUp = (function () {
     function ChatUp(el, conf) {
         var _this = this;
         this._updateUserCount = function (stats) {
-            console.log(stats);
             _this._connectedCountEl.innerText = String(stats.pubCount);
             _this._guestCountEl.innerText = String(stats.subCount - stats.pubCount);
         };
