@@ -143,7 +143,7 @@ var ChatUpProtocol = (function () {
                 return false;
             }
             if (message.status !== 'ok') {
-                rejectFct(new Error(message.err));
+                rejectFct(message);
                 return false;
             }
             return true;

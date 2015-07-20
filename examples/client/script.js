@@ -53,7 +53,17 @@ var ChatUpClientExample = (function () {
             if (!_this._protocol._pubConnected) {
                 return console.error('You need to be authenticated to send a message');
             }
-            _this._protocol.say(_this._messageInput.value).catch(function (err) { console.error(err); });
+            _this._protocol.say(_this._messageInput.value).catch(function (err) {
+              if (err.err === 'banned') {
+                var banMessage = "You are banned from this room";
+                if (err.ttl > 0) {
+                  banMessage += " (" + err.ttl + " seconds remaining)"
+                }
+                _this._statusTextEl.innerText = banMessage;
+                return
+              }
+              console.error(err);
+            });
             _this._messageInput.value = "";
         };
         this._onMsg = function (messageData) {
