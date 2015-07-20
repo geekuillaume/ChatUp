@@ -212,6 +212,9 @@ var ChatUpProtocol = (function () {
                         }
                         _this._pubConnected = true;
                         _this.status = 'authenticated';
+                        if (response.comment && response.comment == 'banned') {
+                            return resolve({ banned: true, banTTL: response.banTTL });
+                        }
                         return resolve();
                     });
                 });

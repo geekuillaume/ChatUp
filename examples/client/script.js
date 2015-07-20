@@ -38,6 +38,7 @@ var ChatUpClientExample = (function () {
         this._initHTML = function () {
             _this._el.innerHTML = ChatUpClientExample._template;
             _this._statusTextEl = findClass(_this._el, 'ChatUpStatusText');
+            _this._banTextEl = findClass(_this._el, 'ChatUpBanText');
             _this._guestCountEl = findClass(_this._el, 'ChatUpGuestCount');
             _this._connectedCountEl = findClass(_this._el, 'ChatUpConnectedCount');
             _this._messageForm = findClass(_this._el, 'ChatUpForm');
@@ -53,14 +54,16 @@ var ChatUpClientExample = (function () {
             if (!_this._protocol._pubConnected) {
                 return console.error('You need to be authenticated to send a message');
             }
-            _this._protocol.say(_this._messageInput.value).catch(function (err) {
+            _this._protocol.say(_this._messageInput.value).then(function() {
+              _this._banTextEl.innerText = null;
+            }).catch(function (err) {
               if (err.err === 'banned') {
                 var banMessage = "You are banned from this room";
                 if (err.ttl > 0) {
-                  banMessage += " (" + err.ttl + " seconds remaining)"
+                  banMessage += " (" + err.ttl + " seconds remaining)";
                 }
-                _this._statusTextEl.innerText = banMessage;
-                return
+                _this._banTextEl.innerText = banMessage;
+                return;
               }
               console.error(err);
             });
@@ -105,18 +108,29 @@ var ChatUpClientExample = (function () {
         this._initHTML();
     }
     ChatUpClientExample.prototype.authenticate = function (jwt) {
+        var _this = this;
         if (this._protocol.status !== 'connected' && this._protocol.status !== 'authError') {
             console.error('You need to be connected and not already authenticated to do that');
         }
         else {
             this._conf.jwt = jwt;
-            return this._protocol.authenticate();
+            return this._protocol.authenticate().then(function(status) {
+              if (status && status.banned) {
+                var banMessage = "You are banned from this room";
+                if (status.banTTL > 0) {
+                  banMessage += " (" + status.banTTL + " seconds remaining)";
+                }
+                _this._banTextEl.innerText = banMessage;
+              } else {
+                _this._banTextEl.innerText = null;
+              }
+            });
         }
     };
     ChatUpClientExample.prototype.init = function () {
         return this._protocol.init();
     };
-    ChatUpClientExample._template = "\n    <div class=\"ChatUpContainer\">\n      <div class=\"ChatUpStatus\">Status: <span class=\"ChatUpStatusText\">Disconnected</span></div>\n      <div class=\"ChatUpCount\">Guest: <span class=\"ChatUpGuestCount\">0</span> - Connected Users: <span class=\"ChatUpConnectedCount\">0</span></div>\n      <div class=\"ChatUpMessages\"></div>\n      <div class=\"ChatUpFormContainer\">\n        <form class=\"ChatUpForm\">\n          <input type=\"text\" required=\"true\" class=\"ChatUpInput\">\n          <button class=\"ChatUpFormButton\">Send</button>\n        </form>\n      </div>\n    </div>\n  ";
+    ChatUpClientExample._template = "\n    <div class=\"ChatUpContainer\">\n      <div class=\"ChatUpStatus\">Status: <span class=\"ChatUpStatusText\">Disconnected</span></div>\n      <div class=\"ChatUpCount\">Guest: <span class=\"ChatUpGuestCount\">0</span> - Connected Users: <span class=\"ChatUpConnectedCount\">0</span></div>\n      <div class=\"ChatUpMessages\"></div>\n      <div class=\"ChatUpFormContainer\">\n        <form class=\"ChatUpForm\">\n          <input type=\"text\" required=\"true\" class=\"ChatUpInput\">\n          <button class=\"ChatUpFormButton\">Send</button>\n        </form>\n      </div>\n    <div class=\"ChatUpStatus\"><span class=\"ChatUpBanText\"></span></div>\n    </div>\n  ";
     return ChatUpClientExample;
 })();
 

@@ -278,6 +278,9 @@ export class ChatUpProtocol {
           }
           this._pubConnected = true;
           this.status = 'authenticated';
+          if (response.comment && response.comment == 'banned') {
+            return resolve({banned: true, banTTL: response.banTTL})
+          }
           return resolve();
         });
       });

@@ -124,7 +124,12 @@ export class ChatUpClient {
     }
     this._room = this._parent._store.joinRoom(msg.room, this);
     this._debug('Joined room %s', this._room.name);
-    cb('ok');
+    this._room.verifyBanStatus(this, (err, isBanned, banTTL) => {
+      if (isBanned) {
+        return cb({status: 'ok', comment: 'banned', banTTL: banTTL});
+      }
+      cb('ok');
+    });
   }
 
   _onSay = (msg, cb) => {

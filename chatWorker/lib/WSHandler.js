@@ -93,7 +93,12 @@ var ChatUpClient = (function () {
             }
             _this._room = _this._parent._store.joinRoom(msg.room, _this);
             _this._debug('Joined room %s', _this._room.name);
-            cb('ok');
+            _this._room.verifyBanStatus(_this, function (err, isBanned, banTTL) {
+                if (isBanned) {
+                    return cb({ status: 'ok', comment: 'banned', banTTL: banTTL });
+                }
+                cb('ok');
+            });
         };
         this._onSay = function (msg, cb) {
             if (!_.isObject(msg) || !_.isString(msg.msg)) {
