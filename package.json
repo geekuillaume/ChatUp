@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "agentkeepalive": "^2.0.2",
-    "body-parser": "^1.12.4",
+    "body-parser": "^1.13.2",
     "debug": "^2.2.0",
     "express": "^4.12.3",
     "got": "^3.2.0",

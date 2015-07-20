@@ -7,6 +7,9 @@ var bodyParser = require('body-parser');
 var dispatchHandler = require('./lib/dispatchHandler');
 var WorkersManager = require('./lib/workersManager');
 var stats_1 = require('./lib/stats');
+var ban_1 = require('./lib/ban');
+var redis = require('redis');
+var bodyParser = require('body-parser');
 var Dispatcher = (function () {
     function Dispatcher(conf) {
         var _this = this;
@@ -34,9 +37,11 @@ var Dispatcher = (function () {
         this._app.use(bodyParser.json());
         this._app.use(this._handleError);
         this._app.use(this._allowCORS);
+        this._redisConnection = redis.createClient(this._conf.redis.port, this._conf.redis.host);
         this._workersManager = new WorkersManager(this);
         this._app.post('/join/:channelName', dispatchHandler(this));
         this._app.get('/stats/:channelName', stats_1.statsHandler(this));
+        this._app.post('/ban', bodyParser.text(), ban_1.banHandler(this));
     }
     Dispatcher.prototype.listen = function (port, callback) {
         if (cluster.isMaster) {

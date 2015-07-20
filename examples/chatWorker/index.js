@@ -12,7 +12,7 @@ var conf = {
   threads: 1,
   sticky: false, // For benchmark purpose, we don't want to have sticky sessions
   jwt: {
-    key: require('fs').readFileSync(__dirname + '/JWTKeyExample.pub').toString(),
+    key: require('fs').readFileSync(__dirname + '/../JWTKeyExample.pub').toString(),
     options: {
       algorithms: ["RS256"]
     }

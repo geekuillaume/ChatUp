@@ -1,17 +1,16 @@
 var _ = require('lodash');
-var redis = require('redis');
 var util = require('util');
 var debug = require('debug')('ChatUp:Dispatcher');
 var WorkersManager = (function () {
     function WorkersManager(parent) {
         var _this = this;
         this._workerRefresh = function () {
-            _this._redisConnection.keys('chatUp:chatServer:*', function (err, workersName) {
+            _this._parent._redisConnection.keys('chatUp:chatServer:*', function (err, workersName) {
                 if (err) {
                     setTimeout(_this._workerRefresh, _this._parent._conf.workerRefreshInterval).unref();
                     return console.error('Error on redis command:', err);
                 }
-                var multi = _this._redisConnection.multi();
+                var multi = _this._parent._redisConnection.multi();
                 _.each(workersName, function (name) { multi.hgetall(name); });
                 multi.exec(function (err, workersInfo) {
                     if (err) {
@@ -36,7 +35,6 @@ var WorkersManager = (function () {
             return _this._workers;
         };
         this._parent = parent;
-        this._redisConnection = redis.createClient(this._parent._conf.redis.port, this._parent._conf.redis.host);
         this._workerRefresh();
     }
     WorkersManager.prototype.getAvailable = function (_a) {

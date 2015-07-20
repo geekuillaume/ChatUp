@@ -7,6 +7,9 @@ var bodyParser = require('body-parser');
 import dispatchHandler = require('./lib/dispatchHandler');
 import WorkersManager = require('./lib/workersManager');
 import {statsHandler} from './lib/stats';
+import {banHandler} from './lib/ban';
+import redis = require('redis');
+var bodyParser = require('body-parser');
 
 export interface workerHost {
   host: string;
@@ -27,6 +30,12 @@ interface DispatcherConf {
   ssl?: {
     key: string;
     cert: string;
+  },
+  jwt?: {
+    key: string,
+    options?: {
+      algorithms: string[];
+    }
   }
 }
 
@@ -48,6 +57,7 @@ export class Dispatcher {
   _app: express.Application;
   _conf: DispatcherConf;
   _workersManager: WorkersManager;
+  _redisConnection: redis.RedisClient;
 
   constructor(conf: DispatcherConf = {}) {
     this._conf = _.defaults(conf, Dispatcher.defaultConf);
@@ -60,13 +70,16 @@ export class Dispatcher {
         cluster.fork();
       });
     }
+
     this._app = express();
     this._app.use(bodyParser.json());
     this._app.use(this._handleError);
     this._app.use(this._allowCORS);
+    this._redisConnection = redis.createClient(this._conf.redis.port, this._conf.redis.host);
     this._workersManager = new WorkersManager(this);
     this._app.post('/join/:channelName', dispatchHandler(this));
     this._app.get('/stats/:channelName', statsHandler(this));
+    this._app.post('/ban', bodyParser.text(), banHandler(this));
   }
 
   _handleError:express.ErrorRequestHandler = function(err, req, res, next) {

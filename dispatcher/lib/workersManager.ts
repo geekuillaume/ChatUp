@@ -1,28 +1,25 @@
 import Dispatcher = require('../index');
 import _ = require('lodash');
-import redis = require('redis');
 import util = require('util');
 var debug = require('debug')('ChatUp:Dispatcher');
 
 class WorkersManager {
   _parent: Dispatcher.Dispatcher;
-  _redisConnection: redis.RedisClient;
 
   _workers: Dispatcher.workerHost[];
 
   constructor(parent: Dispatcher.Dispatcher) {
     this._parent = parent;
-    this._redisConnection = redis.createClient(this._parent._conf.redis.port, this._parent._conf.redis.host);
     this._workerRefresh();
   }
 
   _workerRefresh = () => {
-    this._redisConnection.keys('chatUp:chatServer:*', (err, workersName:string[]) => {
+    this._parent._redisConnection.keys('chatUp:chatServer:*', (err, workersName:string[]) => {
       if (err) {
         setTimeout(this._workerRefresh, this._parent._conf.workerRefreshInterval).unref();
         return console.error('Error on redis command:', err);
       }
-      var multi = this._redisConnection.multi();
+      var multi = this._parent._redisConnection.multi();
       _.each(workersName, (name) => {multi.hgetall(name)});
       multi.exec((err, workersInfo:Dispatcher.workerHost[]) => {
         if (err) {
