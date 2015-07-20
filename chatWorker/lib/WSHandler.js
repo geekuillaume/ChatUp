@@ -102,12 +102,20 @@ var ChatUpClient = (function () {
             if (!_this._room) {
                 return cb({ status: 'error', err: 'Never joined a room' });
             }
-            _this._room.say({
-                user: _this._user._public,
-                msg: msg.msg
+            _this._room.verifyBanStatus(_this, function (err, isBanned, banTTL) {
+                if (err) {
+                    return cb({ status: 'error', err: 'Internal server error' });
+                }
+                if (isBanned) {
+                    return cb({ status: 'error', err: 'banned', ttl: banTTL });
+                }
+                _this._room.say({
+                    user: _this._user._public,
+                    msg: msg.msg
+                });
+                _this._debug('Saying', msg.msg);
+                cb('ok');
             });
-            _this._debug('Saying', msg.msg);
-            cb('ok');
         };
         this._onDisconnect = function () {
             _this._debug('Client disconnected');

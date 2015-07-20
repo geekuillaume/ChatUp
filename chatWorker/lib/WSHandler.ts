@@ -63,7 +63,7 @@ export class WSHandler {
 }
 
 export interface WSUser {
-  _public: {};
+  _public: any;
 }
 
 export class ChatUpClient {
@@ -134,12 +134,20 @@ export class ChatUpClient {
     if (!this._room) {
       return cb({status: 'error', err: 'Never joined a room'});
     }
-    this._room.say({
-      user: this._user._public,
-      msg: msg.msg
-    });
-    this._debug('Saying', msg.msg);
-    cb('ok');
+    this._room.verifyBanStatus(this, (err, isBanned, banTTL) => {
+        if (err) {
+          return cb({status: 'error', err: 'Internal server error'})
+        }
+        if (isBanned) {
+          return cb({status: 'error', err: 'banned', ttl: banTTL})
+        }
+        this._room.say({
+          user: this._user._public,
+          msg: msg.msg
+        });
+        this._debug('Saying', msg.msg);
+        cb('ok');
+      })
   }
 
   _onDisconnect = () => {

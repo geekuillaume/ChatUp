@@ -15,7 +15,7 @@ export class Store {
   _rooms: {[index: string]: Room};
   _debug: Function;
 
-  _pubClient: redis.RedisClient;
+  _redisClient: redis.RedisClient;
   _subClient: redis.RedisClient;
 
   _agent: any;
@@ -35,7 +35,7 @@ export class Store {
       this._agent = new Agent({});
       this._subClient.on('pmessage', this._treatMessage);
     } else {
-      this._pubClient = redis.createClient(this._conf.redis.port, this._conf.redis.host);
+      this._redisClient = redis.createClient(this._conf.redis.port, this._conf.redis.host);
     }
   }
 
@@ -72,7 +72,7 @@ export class Store {
 
   _pub = (roomName, message) => {
     this._debug("Sending on redis in room %s", roomName);
-    this._pubClient.publish("r_" + roomName, JSON.stringify(message));
+    this._redisClient.publish("r_" + roomName, JSON.stringify(message));
   }
 
 }
@@ -159,5 +159,12 @@ export class Room {
     if (this._joined <= 0) {
       this._parent._rooms[this.name] = null;
     }
+  }
+
+  verifyBanStatus = (client: ChatUpClient, callback: (err:Object, isBanned: boolean, ttl: number) => any) => {
+    var keyName = 'chatUp:ban:' + this.name + ':' + client._user._public.name;
+    this._parent._redisClient.ttl(keyName, (err, banTTL) => {
+      return callback(err, banTTL !== -2, banTTL);
+    })
   }
 }

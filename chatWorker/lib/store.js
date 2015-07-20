@@ -39,7 +39,7 @@ var Store = (function () {
         };
         this._pub = function (roomName, message) {
             _this._debug("Sending on redis in room %s", roomName);
-            _this._pubClient.publish("r_" + roomName, JSON.stringify(message));
+            _this._redisClient.publish("r_" + roomName, JSON.stringify(message));
         };
         this._isMaster = isMaster;
         this._debug = debugFactory('ChatUp:Store:' + process.pid);
@@ -53,7 +53,7 @@ var Store = (function () {
             this._subClient.on('pmessage', this._treatMessage);
         }
         else {
-            this._pubClient = redis.createClient(this._conf.redis.port, this._conf.redis.host);
+            this._redisClient = redis.createClient(this._conf.redis.port, this._conf.redis.host);
         }
     }
     return Store;
@@ -120,6 +120,12 @@ var Room = (function () {
             if (_this._joined <= 0) {
                 _this._parent._rooms[_this.name] = null;
             }
+        };
+        this.verifyBanStatus = function (client, callback) {
+            var keyName = 'chatUp:ban:' + _this.name + ':' + client._user._public.name;
+            _this._parent._redisClient.ttl(keyName, function (err, banTTL) {
+                return callback(err, banTTL !== -2, banTTL);
+            });
         };
         this._debug = debugFactory('ChatUp:Store:Room:' + name + ':' + process.pid);
         this._debug('Created room');
