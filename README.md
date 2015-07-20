@@ -86,7 +86,32 @@ To activate SSL, see the corresponding examples files.
 
 User information are stored inside the JSON Web Token. This token must be signed by you authentication server and passed to the client.
 
-Inside this token, you must include a `public` object that will be broadcast to all the rooms clients on each message. It will also be available in the dispatcher stats.
+Inside this token, you must include a `_public` object that will be broadcast to all the rooms clients on each message. It will also be available in the dispatcher stats.
+
+### How to ban users
+
+You can ban a user on a channel by making a POST request to one of the dispatcher on the endpoint `/ban`.
+
+The body of this POST request needs to be a JSON Web Token containing an array of the users to ban, channel on which to ban them and an optionnal ban expire (in seconds). Here an example of a JSON web token content:
+
+```json
+[{
+  "name": "test1",
+  "channel": "TestRoom",
+  "expire": 30
+}, {
+  "name": "test2",
+  "channel": "TestRoom2"
+}]
+```
+
+Using the example Public/Private key pair with this example makes the following JWT:
+
+```
+eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.W3sibmFtZSI6InRlc3QxIiwiY2hhbm5lbCI6IlRlc3RSb29tIiwiZXhwaXJlIjozMH0seyJuYW1lIjoidGVzdDIiLCJjaGFubmVsIjoiVGVzdFJvb20yIn1d.nQ3S48j7J4x3NgNAhi2Qz36MebQMOxc5rHrMcm0D3bERRei2kyTVYmvcLLLJSeSyCX2KzQiV9iMnYgk4JKSEfR52tw4UUXa-7jbgmhhcDpIwo4hiIWgsZokKdo3uRX_UX8jI4ii64Tc8aq-kZiEut4WfxGjuVLlHqj-u77ileKugzhDn7bh-m0PhvdJyZGmCMCcXLnKF-TX2w-XJ_5ZvET5Ki2FH_55-W-WCrX8kPA9pSg5WLrdCunqh6p4zNFMXBxRqV3q1u3TSq4DJQkQRACAKZRqhoJz3KsYNzlxfAfhkt0OsJCwoUAOlcg95xmmSJoxwFJTCojo2lK5YTLD3yg
+```
+
+The `name` is matched against the `name` field of the `_public` sent in the client JSON web token.
 
 ## License
 
