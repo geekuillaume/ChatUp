@@ -5,6 +5,7 @@ import {WSHandler, WSUser} from './lib/WSHandler';
 import {registerWorker} from './lib/workerManager';
 import {Store} from './lib/store';
 import cluster = require('cluster');
+import logger = require('../common/logger');
 
 export interface ChatWorkerConf {
   redis?: {
@@ -33,6 +34,10 @@ export interface ChatWorkerConf {
   ssl?: {
     key: string;
     cert: string;
+  },
+  sentry?: {
+    dsn: String,
+    options: Object
   }
 };
 
@@ -72,6 +77,9 @@ export class ChatWorker {
   constructor(conf: ChatWorkerConf) {
     debug('Init');
     this._conf = _.defaults(conf, ChatWorker.defaultConf);
+    if (this._conf.sentry) {
+      logger.initClient(this._conf.sentry.dsn, this._conf.sentry.options);
+    }
     var infos = sticky(__dirname + '/lib/WSHandler.js', {
       sticky: this._conf.sticky,
       threads: this._conf.threads,
@@ -88,6 +96,7 @@ export class ChatWorker {
       debug('Starting listening on %s', this._conf.port);
       this._server.listen(this._conf.port || 0, (err) => {
         if (err) {
+          logger.captureError(err);
           debug('Error while listening', err);
           return reject(err);
         }

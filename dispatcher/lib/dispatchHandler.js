@@ -1,4 +1,5 @@
 var stats_1 = require('./stats');
+var logger = require('../../common/logger');
 var debug = require('debug')('ChatUp:Dispatcher');
 var dispatchHandler = function (parent) {
     var handler = function (req, res) {
@@ -18,10 +19,12 @@ var dispatchHandler = function (parent) {
                 });
             }
             else {
+                logger.captureError(new Error('No worker available'));
                 debug('No worker available');
                 res.status(418).send({ error: 'No workers available' });
             }
         }).catch(function (err) {
+            logger.captureError(err);
             debug('Error while getting worker', err);
             res.status(500).send(err);
         });

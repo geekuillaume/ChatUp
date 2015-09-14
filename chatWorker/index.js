@@ -3,11 +3,15 @@ var debug = require('debug')('ChatUp:ChatWorker:master');
 var sticky_1 = require('./lib/sticky');
 var workerManager_1 = require('./lib/workerManager');
 var store_1 = require('./lib/store');
+var logger = require('../common/logger');
 ;
 var ChatWorker = (function () {
     function ChatWorker(conf) {
         debug('Init');
         this._conf = _.defaults(conf, ChatWorker.defaultConf);
+        if (this._conf.sentry) {
+            logger.initClient(this._conf.sentry.dsn, this._conf.sentry.options);
+        }
         var infos = sticky_1.sticky(__dirname + '/lib/WSHandler.js', {
             sticky: this._conf.sticky,
             threads: this._conf.threads,
@@ -24,6 +28,7 @@ var ChatWorker = (function () {
             debug('Starting listening on %s', _this._conf.port);
             _this._server.listen(_this._conf.port || 0, function (err) {
                 if (err) {
+                    logger.captureError(err);
                     debug('Error while listening', err);
                     return reject(err);
                 }

@@ -3,6 +3,7 @@ var _ = require('lodash');
 var superagent = require('superagent');
 var Agent = require('agentkeepalive');
 var debugFactory = require('debug');
+var logger = require('../../common/logger');
 var Store = (function () {
     function Store(conf, isMaster) {
         var _this = this;
@@ -78,6 +79,9 @@ var Room = (function () {
                     .query({ id: _this.name })
                     .send(_this._messageBuffer)
                     .end(function (err, data) {
+                    if (err) {
+                        logger.captureError(logger.error('Sending messages to Redis', { err: err }));
+                    }
                     _this._debug('Sent %s messages to nginx', messageBufferLength);
                 });
                 _this._messageBuffer = [];
@@ -92,9 +96,11 @@ var Room = (function () {
                 message = JSON.parse(rawMessage);
             }
             catch (e) {
+                logger.captureError(logger.error('Message in Redis is not JSON', { rawMessage: rawMessage }));
                 return _this._debug('Message in Redis is not JSON', rawMessage);
             }
             if (!_.isObject(message) || !_.isObject(message.user)) {
+                logger.captureError(logger.error('Incorrect message in Redis', { message: message }));
                 return _this._debug('Incorrect message in Redis', message);
             }
             _this._messageBuffer.push(message);

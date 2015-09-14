@@ -5,6 +5,7 @@ var url = require('url');
 var _ = require('lodash');
 var redis = require('redis');
 var superagent = require('superagent');
+var logger = require('../../common/logger');
 exports.registerWorker = function (worker) {
     var redisConnection = redis.createClient(worker._conf.redis.port, worker._conf.redis.host);
     return validateWorkerInfos(worker).then(function () {
@@ -18,6 +19,7 @@ function getNginxStats(worker) {
         superagent.get('http://127.0.0.1:' + worker._conf.nginx.port + '/channels-stats?id=ALL')
             .end(function (err, res) {
             if (err) {
+                logger.captureError(logger.error('Error while getting nginx stats', { err: err }));
                 debug('Error while getting nginx stats', err);
                 return reject(err);
             }
@@ -31,6 +33,7 @@ function getNginxStats(worker) {
                 }, {});
             }
             catch (err) {
+                logger.captureError(logger.error('Error while parsing nginx stats', { err: err }));
                 debug('Error while parsing nginx stats', err);
                 return reject(err);
             }
@@ -48,6 +51,7 @@ function validateWorkerInfos(worker) {
         }
         got('https://api.ipify.org', function (err, ip) {
             if (err) {
+                logger.captureError(logger.error('Couldn\'t get worker ip address', { err: err }));
                 return reject(new Error("Couldn't get worker ip address"));
             }
             worker._conf.hostname = ip;
@@ -87,6 +91,7 @@ function registerInRedis(worker, redisConnection, stats) {
             .pexpire(keyName, worker._conf.expireDelay)
             .exec(function (err, results) {
             if (err) {
+                logger.captureError(logger.error('Redis register', { err: err }));
                 return reject(err);
             }
             return resolve();
@@ -98,6 +103,7 @@ function startAlivePing(worker, redisConnection) {
         getNginxStats(worker).then(function (nginxStats) {
             return registerInRedis(worker, redisConnection, nginxStats);
         }).catch(function (err) {
+            logger.captureError(logger.error('Nginx stats error', { err: err }));
             console.log(err.stack);
             registerInRedis(worker, redisConnection, { err: 'nginxStats' });
         });

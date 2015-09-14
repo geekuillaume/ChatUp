@@ -1,15 +1,18 @@
 var _ = require('lodash');
 var jwt = require('jsonwebtoken');
+var logger = require('../../common/logger');
 var debug = require('debug')('ChatUp:Dispatcher:BanHandler');
 function banHandler(parent) {
     var handler = function (req, res) {
         0;
         jwt.verify(req.body, parent._conf.jwt.key, parent._conf.jwt.options, function (err, decoded) {
             if (err) {
+                logger.captureError(err);
                 debug('Authentication error: Wrong JWT', req.body, err);
                 return res.status(401).send({ status: 'error', err: "Wrong JWT" });
             }
             function wrongJWTContent() {
+                logger.captureError(new Error('Ban: Wrong JWT content'));
                 debug('Authentication error: Wrong JWT content', req.body, decoded);
                 return res.status(401).send({ status: 'error', err: "Wrong JWT content" });
             }
@@ -27,7 +30,6 @@ function banHandler(parent) {
                 if (_.isNumber(decoded[i].expire)) {
                     toBan.expire = decoded[i].expire;
                 }
-                console.log(toBan);
                 toBans.push(toBan);
             }
             var redisMulti = parent._redisConnection.multi();
@@ -43,6 +45,7 @@ function banHandler(parent) {
             }
             redisMulti.exec(function (err) {
                 if (err) {
+                    logger.captureError(err);
                     res.status(500).send(err);
                 }
                 res.sendStatus(200);

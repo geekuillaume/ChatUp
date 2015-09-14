@@ -1,6 +1,7 @@
 import express = require('express');
 import Dispatcher = require('../index');
 import {getChannelStats} from './stats';
+import logger = require('../../common/logger');
 var debug = require('debug')('ChatUp:Dispatcher');
 
 var dispatchHandler = function (parent: Dispatcher.Dispatcher) {
@@ -23,11 +24,13 @@ var dispatchHandler = function (parent: Dispatcher.Dispatcher) {
           channel: channelStats
         });
       } else {
+        logger.captureError(new Error('No worker available'));
         debug('No worker available')
         // A dispatcher without workers is just like a teapot
         res.status(418).send({error: 'No workers available'});
       }
     }).catch(function(err) {
+      logger.captureError(err);
       debug('Error while getting worker', err);
       res.status(500).send(err);
     });

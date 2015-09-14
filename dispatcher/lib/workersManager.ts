@@ -1,6 +1,7 @@
 import Dispatcher = require('../index');
 import _ = require('lodash');
 import util = require('util');
+import logger = require('../../common/logger');
 var debug = require('debug')('ChatUp:Dispatcher');
 
 class WorkersManager {
@@ -16,6 +17,7 @@ class WorkersManager {
   _workerRefresh = () => {
     this._parent._redisConnection.keys('chatUp:chatServer:*', (err, workersName:string[]) => {
       if (err) {
+        logger.captureError(err);
         setTimeout(this._workerRefresh, this._parent._conf.workerRefreshInterval).unref();
         return console.error('Error on redis command:', err);
       }
@@ -23,6 +25,7 @@ class WorkersManager {
       _.each(workersName, (name) => {multi.hgetall(name)});
       multi.exec((err, workersInfo:Dispatcher.workerHost[]) => {
         if (err) {
+          logger.captureError(err);
           console.error('Error on redis command:', err);
         } else {
           this._workers = workersInfo;

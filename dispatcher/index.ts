@@ -9,6 +9,7 @@ import WorkersManager = require('./lib/workersManager');
 import {statsHandler} from './lib/stats';
 import {banHandler} from './lib/ban';
 import redis = require('redis');
+import logger = require('../common/logger');
 var bodyParser = require('body-parser');
 
 export interface workerHost {
@@ -36,6 +37,10 @@ interface DispatcherConf {
     options?: {
       algorithms: string[];
     }
+  },
+  sentry?: {
+    dsn: String,
+    options?: Object
   }
 }
 
@@ -71,6 +76,10 @@ export class Dispatcher {
       });
     }
 
+    if (this._conf.sentry) {
+      logger.initClient(this._conf.sentry.dsn, this._conf.sentry.options);
+    }
+
     this._app = express();
     this._app.use(bodyParser.json());
     this._app.use(this._handleError);
@@ -83,6 +92,7 @@ export class Dispatcher {
   }
 
   _handleError:express.ErrorRequestHandler = function(err, req, res, next) {
+    logger.captureError(err);
     res.send(400, { err: err });
   }
 

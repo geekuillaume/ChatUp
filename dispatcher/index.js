@@ -9,12 +9,14 @@ var WorkersManager = require('./lib/workersManager');
 var stats_1 = require('./lib/stats');
 var ban_1 = require('./lib/ban');
 var redis = require('redis');
+var logger = require('../common/logger');
 var bodyParser = require('body-parser');
 var Dispatcher = (function () {
     function Dispatcher(conf) {
         var _this = this;
         if (conf === void 0) { conf = {}; }
         this._handleError = function (err, req, res, next) {
+            logger.captureError(err);
             res.send(400, { err: err });
         };
         this._allowCORS = function (req, res, next) {
@@ -32,6 +34,9 @@ var Dispatcher = (function () {
                 console.log('Worker ' + worker.id + ' died, restarting another one');
                 cluster.fork();
             });
+        }
+        if (this._conf.sentry) {
+            logger.initClient(this._conf.sentry.dsn, this._conf.sentry.options);
         }
         this._app = express();
         this._app.use(bodyParser.json());

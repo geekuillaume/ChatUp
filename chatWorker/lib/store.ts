@@ -8,6 +8,7 @@ import {ChatWorkerConf} from '../index';
 import {ChatUpClient} from './WSHandler';
 var Agent = require('agentkeepalive');
 var debugFactory = require('debug');
+import logger = require('../../common/logger');
 
 export class Store {
 
@@ -115,6 +116,9 @@ export class Room {
         .query({id: this.name})
         .send(this._messageBuffer)
         .end((err, data) => {
+          if (err) {
+            logger.captureError(logger.error('Sending messages to Redis', {err}))
+          }
           this._debug('Sent %s messages to nginx', messageBufferLength);
         });
       this._messageBuffer = [];
@@ -130,9 +134,11 @@ export class Room {
     try {
       message = JSON.parse(rawMessage);
     } catch (e) {
+      logger.captureError(logger.error('Message in Redis is not JSON', {rawMessage}))
       return this._debug('Message in Redis is not JSON', rawMessage);
     }
     if (!_.isObject(message) || !_.isObject(message.user)) {
+      logger.captureError(logger.error('Incorrect message in Redis', {message}))
       return this._debug('Incorrect message in Redis', message);
     }
     this._messageBuffer.push(message);

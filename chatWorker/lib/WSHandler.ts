@@ -8,6 +8,7 @@ import _ = require('lodash');
 import {ChatWorker, ChatWorkerConf} from '../index';
 import {Store, Room} from './store';
 import {stickyClient} from './sticky';
+import logger = require('../../common/logger');
 
 stickyClient(function(conf) {
   var handler = new WSHandler(conf);
@@ -87,6 +88,7 @@ export class ChatUpClient {
 
   _onAuth = (msg, cb) => {
     if (!_.isString(msg)) {
+      logger.captureError(logger.error('Authentication error: Wrong format', msg))
       this._debug('Authentication error: Wrong format', msg);
       return cb({status: 'error', err: "Wrong format"});
     }
@@ -96,10 +98,12 @@ export class ChatUpClient {
       this._parent._conf.jwt.options,
       (err, decoded) => {
         if (err) {
+          logger.captureError(logger.error('Authentication error: Wrong format', {err, msg}))
           this._debug('Authentication error: Wrong JWT', msg, err);
           return cb({status: 'error', err: "Wrong JWT"});
         }
         if (!_.isObject(decoded._public)) {
+          logger.captureError(logger.error('Authentication error: Wrong format', {decoded, msg}))
           this._debug('Authentication error: Wrong JWT content', msg, decoded);
           return cb({status: 'error', err: "Wrong JWT content"});
         }
@@ -111,15 +115,18 @@ export class ChatUpClient {
 
   _onJoin = (msg, cb) => {
     if (!_.isObject(msg) || !_.isString(msg.room)) {
+      logger.captureError(logger.error('Wrong format', {msg}))
       return cb({status: 'error', err: "Wrong format"});
     }
     if (this._room && this._room.name === msg.room) {
       return cb('ok');
     }
     if (!this._user) {
+      logger.captureError(logger.error('Not authenticated', {msg}))
       return cb({status: 'error', err: 'You need to be authenticated to join a room'})
     }
     if (this._room && this._room.name !== msg.room) {
+      logger.captureError(logger.error('Already in another room', {msg}))
       return cb({status: 'error', err: "Already in another room"});
     }
     this._room = this._parent._store.joinRoom(msg.room, this);
@@ -134,13 +141,16 @@ export class ChatUpClient {
 
   _onSay = (msg, cb) => {
     if (!_.isObject(msg) || !_.isString(msg.msg)) {
+      logger.captureError(logger.error('Wrong format', {msg}))
       return cb({status: 'error', err: 'Wrong format'});
     }
     if (!this._room) {
+      logger.captureError(logger.error('No room', {msg}))
       return cb({status: 'error', err: 'Never joined a room'});
     }
     this._room.verifyBanStatus(this, (err, isBanned, banTTL) => {
         if (err) {
+          logger.captureError(logger.error('Internal server error', {err}))
           return cb({status: 'error', err: 'Internal server error'})
         }
         if (isBanned) {

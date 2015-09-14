@@ -2,6 +2,7 @@ import express = require('express');
 import _ = require('lodash');
 import {Dispatcher} from '../index';
 import jwt = require('jsonwebtoken');
+import logger = require('../../common/logger');
 var debug = require('debug')('ChatUp:Dispatcher:BanHandler');
 
 export function banHandler(parent: Dispatcher) {
@@ -13,10 +14,12 @@ export function banHandler(parent: Dispatcher) {
       parent._conf.jwt.options,
       (err, decoded) => {
         if (err) {
+          logger.captureError(err);
           debug('Authentication error: Wrong JWT', req.body, err);
           return res.status(401).send({status: 'error', err: "Wrong JWT"});
         }
         function wrongJWTContent() {
+          logger.captureError(new Error('Ban: Wrong JWT content'));
           debug('Authentication error: Wrong JWT content', req.body, decoded);
           return res.status(401).send({status: 'error', err: "Wrong JWT content"});
         }
@@ -34,7 +37,6 @@ export function banHandler(parent: Dispatcher) {
             if (_.isNumber(decoded[i].expire)) {
               toBan.expire = decoded[i].expire; // Duration in second before expiration of the ban
             }
-            console.log(toBan);
             toBans.push(toBan);
         }
         var redisMulti = parent._redisConnection.multi();
@@ -51,6 +53,7 @@ export function banHandler(parent: Dispatcher) {
 
         redisMulti.exec((err) => {
           if (err) {
+            logger.captureError(err);
             res.status(500).send(err);
           }
           res.sendStatus(200);
