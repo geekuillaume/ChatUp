@@ -113,6 +113,12 @@ eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.W3sibmFtZSI6InRlc3QxIiwiY2hhbm5lbCI6IlRlc3R
 
 The `name` is matched against the `name` field of the `_public` sent in the client JSON web token.
 
+### How to get messages history of a room
+
+You can configure the Chat Worker to keep in cache (on Redis) the last N messages (look at the example file for the Chat Worker). These messages are available on an API endpoint from the Dispatcher. You can access these messages by requesting the `/messages/:channelName` route.
+
+Remarque: These messages are only available from the API endpoints, it's different from the messages in cache served when a new user connects. Thoses messages are stored directly in Nginx and are automatically fetched on connection start by the Client Lib.
+
 ## License
 
 ChatUp is licensed on GNU GENERAL PUBLIC LICENSE.

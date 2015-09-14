@@ -19,7 +19,7 @@ var conf = {
   },
   messageHistory: { // It's different from the history length sent on client connection (located in nginx conf file)
     size: 10, // The length of the message staying in history for dispatcher access
-    expire: 15 // The time before the expiration of the history in seconds (if not modified before)
+    expire: 24 * 60 * 60 // The time before the expiration of the history in seconds (if not modified before)
   }
 
   // You can also use SSL, just provide you cert and key

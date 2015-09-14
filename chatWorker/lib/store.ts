@@ -76,7 +76,8 @@ export class Store {
     this._redisClient.publish("r_" + roomName, JSON.stringify(message));
     this._redisClient.multi()
       .lpush('chatUp:room:r_' + roomName, JSON.stringify(message))
-      .ltrim('chatUp:room:r_' + roomName, 0, this._conf.messageHistory.size)
+      // We now trim to only keep the n first items of the list
+      .ltrim('chatUp:room:r_' + roomName, 0, this._conf.messageHistory.size - 1) // We substract one because the trim is inclusive
       .expire('chatUp:room:r_' + roomName, this._conf.messageHistory.expire)
       .exec((err, op) => {
         if (err) {

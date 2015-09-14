@@ -26,6 +26,7 @@
         "./dispatcher/index.ts",
         "./dispatcher/lib/ban.ts",
         "./dispatcher/lib/dispatchHandler.ts",
+        "./dispatcher/lib/messagesHistory.ts",
         "./dispatcher/lib/stats.ts",
         "./dispatcher/lib/workersManager.ts",
         "./index.ts",

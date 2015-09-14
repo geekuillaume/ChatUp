@@ -43,7 +43,7 @@ var Store = (function () {
             _this._redisClient.publish("r_" + roomName, JSON.stringify(message));
             _this._redisClient.multi()
                 .lpush('chatUp:room:r_' + roomName, JSON.stringify(message))
-                .ltrim('chatUp:room:r_' + roomName, 0, _this._conf.messageHistory.size)
+                .ltrim('chatUp:room:r_' + roomName, 0, _this._conf.messageHistory.size - 1)
                 .expire('chatUp:room:r_' + roomName, _this._conf.messageHistory.expire)
                 .exec(function (err, op) {
                 if (err) {

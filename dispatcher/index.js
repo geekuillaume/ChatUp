@@ -7,6 +7,7 @@ var bodyParser = require('body-parser');
 var dispatchHandler = require('./lib/dispatchHandler');
 var WorkersManager = require('./lib/workersManager');
 var stats_1 = require('./lib/stats');
+var messagesHistory_1 = require('./lib/messagesHistory');
 var ban_1 = require('./lib/ban');
 var redis = require('redis');
 var logger = require('../common/logger');
@@ -46,6 +47,7 @@ var Dispatcher = (function () {
         this._workersManager = new WorkersManager(this);
         this._app.post('/join/:channelName', dispatchHandler(this));
         this._app.get('/stats/:channelName', stats_1.statsHandler(this));
+        this._app.get('/messages/:channelName', messagesHistory_1.messagesHistoryHandler(this));
         this._app.post('/ban', bodyParser.text(), ban_1.banHandler(this));
     }
     Dispatcher.prototype.listen = function (port, callback) {

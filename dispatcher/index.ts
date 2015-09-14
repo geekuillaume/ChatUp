@@ -7,6 +7,7 @@ var bodyParser = require('body-parser');
 import dispatchHandler = require('./lib/dispatchHandler');
 import WorkersManager = require('./lib/workersManager');
 import {statsHandler} from './lib/stats';
+import {messagesHistoryHandler} from './lib/messagesHistory';
 import {banHandler} from './lib/ban';
 import redis = require('redis');
 import logger = require('../common/logger');
@@ -88,6 +89,7 @@ export class Dispatcher {
     this._workersManager = new WorkersManager(this);
     this._app.post('/join/:channelName', dispatchHandler(this));
     this._app.get('/stats/:channelName', statsHandler(this));
+    this._app.get('/messages/:channelName', messagesHistoryHandler(this));
     this._app.post('/ban', bodyParser.text(), banHandler(this));
   }
 
