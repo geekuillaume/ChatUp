@@ -106,14 +106,18 @@ var ChatUpProtocol = (function () {
             }, _this._conf.userCountRefreshTimeout);
         };
         this._handleMessagesBuffer = function (data) {
-            _this._lastReceivedMessageTime = new Date(data.substring(0, _.indexOf(data, '.')));
+            var indexes = helpers_1.indexesOf(data, '.');
+            console.log(indexes);
+            _this._lastReceivedMessageTime = new Date(data.substring(0, indexes[0]));
+            var channel = data.substring(indexes[0] + 1, indexes[1]);
             var messages;
             try {
-                messages = JSON.parse(data.substring(_.indexOf(data, '.') + 1));
+                messages = JSON.parse(data.substring(indexes[1] + 1));
             }
             catch (e) { }
             for (var _i = 0; _i < messages.length; _i++) {
                 var message = messages[_i];
+                message.channel = channel;
                 if (message.msg) {
                     _this.stats.msgReceived++;
                     for (var _a = 0, _b = _this._msgHandlers; _a < _b.length; _a++) {
@@ -164,6 +168,11 @@ var ChatUpProtocol = (function () {
                 });
                 _this._pushStream.onmessage = _this._handleMessagesBuffer;
                 _this._pushStream.addChannel(_this._conf.room);
+                if (_this._conf.additionalChannels) {
+                    for (var i = 0; i < _this._conf.additionalChannels.length; i++) {
+                        _this._pushStream.addChannel(_this._conf.additionalChannels[i]);
+                    }
+                }
                 _this._pushStream.onstatuschange = function (status) {
                     if (status === PushStream.PushStream.OPEN) {
                         return resolve();
@@ -294,7 +303,8 @@ var ChatUpProtocol = (function () {
             forceNew: true
         },
         nginxPort: 42632,
-        userCountRefreshTimeout: 20000
+        userCountRefreshTimeout: 20000,
+        additionalChannels: []
     };
     return ChatUpProtocol;
 })();

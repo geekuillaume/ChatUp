@@ -27,3 +27,13 @@ export function timeoutPromise(timeout): Promise<void> {
 		}, timeout);
 	})
 }
+
+export function indexesOf(str: string, needle: string): number[] {
+	let indexes = [];
+	for (let i = 0; i < str.length; i++) {
+    if (str[i] == needle) {
+			indexes.push(i);
+		}
+	}
+	return indexes;
+}

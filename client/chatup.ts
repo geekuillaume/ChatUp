@@ -5,7 +5,7 @@ var es6shim = require('es6-shim');
 var now = require('performance-now');
 var PushStream = require('./lib/nginx-pushstream.js');
 import url = require('url');
-import {findClass, timeoutPromise} from './lib/helpers';
+import {findClass, timeoutPromise, indexesOf} from './lib/helpers';
 
 interface ChatUpConf {
   dispatcherURL: string;
@@ -14,6 +14,7 @@ interface ChatUpConf {
   socketIO: {};
   nginxPort: number;
   userCountRefreshTimeout: number;
+  additionalChannels?: string[];
 }
 
 interface ChatUpStats {
@@ -35,7 +36,8 @@ export class ChatUpProtocol {
       forceNew: true
     },
     nginxPort: 42632,
-    userCountRefreshTimeout: 20000
+    userCountRefreshTimeout: 20000,
+    additionalChannels: []
   }
 
   _conf: ChatUpConf;
@@ -174,12 +176,16 @@ export class ChatUpProtocol {
   }
 
   _handleMessagesBuffer = (data) => {
-    this._lastReceivedMessageTime = new Date(data.substring(0, _.indexOf(data, '.')));
+    let indexes = indexesOf(data, '.');
+    console.log(indexes);
+    this._lastReceivedMessageTime = new Date(data.substring(0, indexes[0]));
+    var channel = data.substring(indexes[0] + 1, indexes[1])
     var messages;
     try {
-      messages = JSON.parse(data.substring(_.indexOf(data, '.') + 1));
+      messages = JSON.parse(data.substring(indexes[1] + 1));
     } catch (e) {}
     for (let message of messages) {
+      message.channel = channel;
       if (message.msg) {
         this.stats.msgReceived++;
         for(let handler of this._msgHandlers) {
@@ -230,6 +236,11 @@ export class ChatUpProtocol {
       });
       this._pushStream.onmessage = this._handleMessagesBuffer;
       this._pushStream.addChannel(this._conf.room);
+      if (this._conf.additionalChannels) {
+        for (let i = 0; i < this._conf.additionalChannels.length; i++) {
+          this._pushStream.addChannel(this._conf.additionalChannels[i]);
+        }
+      }
       this._pushStream.onstatuschange = (status) => {
         if (status === PushStream.PushStream.OPEN) {
           return resolve();

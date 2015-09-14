@@ -28,3 +28,13 @@ function timeoutPromise(timeout) {
     });
 }
 exports.timeoutPromise = timeoutPromise;
+function indexesOf(str, needle) {
+    var indexes = [];
+    for (var i = 0; i < str.length; i++) {
+        if (str[i] == needle) {
+            indexes.push(i);
+        }
+    }
+    return indexes;
+}
+exports.indexesOf = indexesOf;

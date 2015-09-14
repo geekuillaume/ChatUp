@@ -73,7 +73,7 @@ var ChatUpClientExample = (function () {
             var atBottom = _this._messagesContainer.scrollTop === _this._messagesContainer.scrollHeight - _this._messagesContainer.offsetHeight;
             _this._messagesContainer.innerHTML += [
                 '<div class="ChatUpMessage">',
-                '<p class="ChatUpMessageSender">' + messageData.user.name + '</p>',
+                '<p class="ChatUpMessageSender">' + messageData.user.name + ' - ' + messageData.channel + '</p>',
                 '<p class="ChatUpMessageContent">' + messageData.msg + '</p>',
                 '</div>'].join('\n');
             if (atBottom) {
@@ -183,7 +183,8 @@ function addChatUp() {
     chatup = new ChatUpClientExample(findClass(element, 'ChatUpTestContainer'), {
       dispatcherURL: document.getElementById('dispatcherURL').value,
       room: roomInput.value,
-      socketIO: {transports: ['websocket'], multiplex: false} // Disabling multiplex to force multiple websockets and not reusing an already connected one
+      socketIO: {transports: ['websocket'], multiplex: false}, // Disabling multiplex to force multiple websockets and not reusing an already connected one
+      additionalChannels: ['notifications', 'notifications2', 'notifications3']
     });
     chatup.init();
   };
