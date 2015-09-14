@@ -9,6 +9,7 @@ var WorkersManager = require('./lib/workersManager');
 var stats_1 = require('./lib/stats');
 var messagesHistory_1 = require('./lib/messagesHistory');
 var ban_1 = require('./lib/ban');
+var postMessage_1 = require('./lib/postMessage');
 var redis = require('redis');
 var logger = require('../common/logger');
 var bodyParser = require('body-parser');
@@ -48,6 +49,7 @@ var Dispatcher = (function () {
         this._app.post('/join/:channelName', dispatchHandler(this));
         this._app.get('/stats/:channelName', stats_1.statsHandler(this));
         this._app.get('/messages/:channelName', messagesHistory_1.messagesHistoryHandler(this));
+        this._app.post('/post', bodyParser.text(), postMessage_1.postMessageHandler(this));
         this._app.post('/ban', bodyParser.text(), ban_1.banHandler(this));
     }
     Dispatcher.prototype.listen = function (port, callback) {

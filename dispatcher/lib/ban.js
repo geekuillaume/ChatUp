@@ -4,7 +4,6 @@ var logger = require('../../common/logger');
 var debug = require('debug')('ChatUp:Dispatcher:BanHandler');
 function banHandler(parent) {
     var handler = function (req, res) {
-        0;
         jwt.verify(req.body, parent._conf.jwt.key, parent._conf.jwt.options, function (err, decoded) {
             if (err) {
                 logger.captureError(err);

@@ -7,7 +7,7 @@ var debug = require('debug')('ChatUp:Dispatcher:BanHandler');
 
 export function banHandler(parent: Dispatcher) {
   var handler: express.RequestHandler = function(req, res) {
-0
+
     jwt.verify(
       req.body,
       parent._conf.jwt.key,
