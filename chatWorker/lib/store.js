@@ -41,6 +41,16 @@ var Store = (function () {
         this._pub = function (roomName, message) {
             _this._debug("Sending on redis in room %s", roomName);
             _this._redisClient.publish("r_" + roomName, JSON.stringify(message));
+            _this._redisClient.multi()
+                .lpush('chatUp:room:r_' + roomName, JSON.stringify(message))
+                .ltrim('chatUp:room:r_' + roomName, 0, _this._conf.messageHistory.size)
+                .expire('chatUp:room:r_' + roomName, _this._conf.messageHistory.expire)
+                .exec(function (err, op) {
+                if (err) {
+                    console.error('Error while saving message to redis', err);
+                    logger.captureError(logger.error('Redis sending error', { err: err }));
+                }
+            });
         };
         this._isMaster = isMaster;
         this._debug = debugFactory('ChatUp:Store:' + process.pid);

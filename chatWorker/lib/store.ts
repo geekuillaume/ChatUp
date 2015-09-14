@@ -74,6 +74,16 @@ export class Store {
   _pub = (roomName, message) => {
     this._debug("Sending on redis in room %s", roomName);
     this._redisClient.publish("r_" + roomName, JSON.stringify(message));
+    this._redisClient.multi()
+      .lpush('chatUp:room:r_' + roomName, JSON.stringify(message))
+      .ltrim('chatUp:room:r_' + roomName, 0, this._conf.messageHistory.size)
+      .expire('chatUp:room:r_' + roomName, this._conf.messageHistory.expire)
+      .exec((err, op) => {
+        if (err) {
+          console.error('Error while saving message to redis', err);
+          logger.captureError(logger.error('Redis sending error', {err}));
+        }
+      });
   }
 
 }

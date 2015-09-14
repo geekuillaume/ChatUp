@@ -21,6 +21,10 @@ export interface ChatWorkerConf {
   msgBufferDelay?: number;
   expireDelay?: number;
   host?: string;
+  messageHistory?: {
+    size: number;
+    expire: number;
+  },
   nginx?: {
     host: string;
     port: number;
@@ -62,6 +66,10 @@ export class ChatWorker {
     sticky: true,
     msgBufferDelay: 500,
     expireDelay: 2000,
+    messageHistory: {
+      size: 100,
+      expire: 24 * 60
+    },
     nginx: {
       host: '127.0.0.1',
       port: 42631

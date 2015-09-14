@@ -15,7 +15,7 @@ var dispatcher = new ChatUp.Dispatcher({
     }
   },
   sentry: {
-    dsn: "https://301dad7f25524ac29156411b08c61d6e:d1f330ef9ad74bc6b3720b64043bd8c6@app.getsentry.com/52415"
+    // dsn: "https://301dad7f25524ac29156411b08c61d6e:d1f330ef9ad74bc6b3720b64043bd8c6@app.getsentry.com/52415"
   }
 });
 
