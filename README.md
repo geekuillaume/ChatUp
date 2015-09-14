@@ -119,6 +119,34 @@ You can configure the Chat Worker to keep in cache (on Redis) the last N message
 
 Remarque: These messages are only available from the API endpoints, it's different from the messages in cache served when a new user connects. Thoses messages are stored directly in Nginx and are automatically fetched on connection start by the Client Lib.
 
+### How to use additional channels
+
+You can configure a client to listen on additional channels to be able to send him specific notifications. To do that, just add the `additionalChannels` property in the client configuration (look at the example for a concrete use).
+
+These channels can be used to send a message to a specific user or to broadcast a message to all your users.
+
+### How to post a message from the API endpoint
+
+You can use the `POST /post` API endpoint to send multiple messages to specific channels. This request body must be a JWT containing something like this:
+
+```json
+[{
+  "channel": "notifications",
+  "msg": "This is a test",
+  "user": {
+    "name": "Server"
+  }
+}, {
+  "channel": "notifications2",
+  "msg": "This is a second test",
+  "user": {
+    "name": "Server 2"
+  }
+}]
+```
+
+The message will be broadcasted to all Chat Workers and then to all clients that are subscribed to the channel.
+
 ## License
 
 ChatUp is licensed on GNU GENERAL PUBLIC LICENSE.
