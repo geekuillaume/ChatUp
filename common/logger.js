@@ -7,6 +7,9 @@ var raven = require('raven');
 var client;
 function initClient(sentryDSN, options) {
     if (options === void 0) { options = {}; }
+    if (!sentryDSN) {
+        return;
+    }
     client = new raven.Client(sentryDSN, options);
     client.patchGlobal(function (e) {
         console.error('Uncaught Exception', e, e.stack);
