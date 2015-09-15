@@ -107,7 +107,6 @@ var ChatUpProtocol = (function () {
         };
         this._handleMessagesBuffer = function (data) {
             var indexes = helpers_1.indexesOf(data, '.');
-            console.log(indexes);
             _this._lastReceivedMessageTime = new Date(data.substring(0, indexes[0]));
             var channel = data.substring(indexes[0] + 1, indexes[1]);
             var messages;

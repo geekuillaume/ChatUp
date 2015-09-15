@@ -177,7 +177,6 @@ export class ChatUpProtocol {
 
   _handleMessagesBuffer = (data) => {
     let indexes = indexesOf(data, '.');
-    console.log(indexes);
     this._lastReceivedMessageTime = new Date(data.substring(0, indexes[0]));
     var channel = data.substring(indexes[0] + 1, indexes[1])
     var messages;
