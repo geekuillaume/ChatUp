@@ -14,6 +14,22 @@ ChatUp is:
 - separated in multiple micro-services
 - used at large scale and created by [Streamup](https://streamup.com/)
 
+## Test it with Docker
+
+ChatUp is available on Docker. You can use this image to test it quickly or to deploy it easily in production.
+
+To do so, execute those three commands:
+
+```
+docker run --name chatup-redis -d redis
+docker run --link chatup-redis:redis -e CHATUP_REDISHOST=redis --name chatup-dispatcher -d geekuillaume/chatup dispatcher
+docker run --link chatup-redis:redis -e CHATUP_REDISHOST=redis --name chatup-worker -d geekuillaume/chatup worker --use-container-ip
+```
+
+You can then get the dispatcher IP with `docker inspect --format '{{ .NetworkSettings.IPAddress }}' chatup-dispatcher` and use the example [client page](https://rawgit.com/geekuillaume/ChatUp/master/examples/client/index.html) indicating this IP to test it.
+
+You can spawn multiple workers and load-balance without having to configure anything else. If you want to add multiple dispatchers, you need to put a load-balancer in front of them.
+
 ## How to Install
 
 On Ubuntu (tested on 14.04):
