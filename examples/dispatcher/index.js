@@ -2,23 +2,29 @@ var ChatUp = require('../../index.js');
 var fs = require('fs');
 
 var dispatcher = new ChatUp.Dispatcher({
-  // ssl: {
-  //   key: fs.readFileSync('/var/certs/streamup-key.pem'),
-  //   cert: fs.readFileSync('/var/certs/streamup-cert.cert')
-  // },
+  ssl: {
+    key: process.env.CHATUP_SSLKEY,
+    cert: process.env.CHATUP_SSLCERT
+  },
   // if not set, equals require('os').cpus().length
-  //threads: 5,
+  threads: process.env.CHATUP_THREADS || require('os').cpus().length,
   jwt: {
-    key: require('fs').readFileSync(__dirname + '/../JWTKeyExample.pub').toString(),
+    key: process.env.CHATUP_JWTKEY || require('fs').readFileSync(__dirname + '/../JWTKeyExample.pub').toString(),
     options: {
       algorithms: ["RS256"]
     }
   },
   sentry: {
-    // dsn: "https://301dad7f25524ac29156411b08c61d6e:d1f330ef9ad74bc6b3720b64043bd8c6@app.getsentry.com/52415"
-  }
+    dsn: process.env.CHATUP_SENTRYDSN
+  },
+  redis: {
+    host: process.env.CHATUP_REDISHOST || 'localhost',
+    port: process.env.CHATUP_REDISPORT
+  },
 });
 
-dispatcher.listen(8000, function() {
-  console.log('Dispatcher listening on port 8000');
+var port = process.env.CHATUP_PORT || 80;
+
+dispatcher.listen(port, function() {
+  console.log('Dispatcher listening on port %s', port);
 });

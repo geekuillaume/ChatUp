@@ -8,7 +8,7 @@ var logger = require('../common/logger');
 var ChatWorker = (function () {
     function ChatWorker(conf) {
         debug('Init');
-        this._conf = _.defaults(conf, ChatWorker.defaultConf);
+        this._conf = _.defaultsDeep(conf, ChatWorker.defaultConf);
         if (this._conf.sentry) {
             logger.initClient(this._conf.sentry.dsn, this._conf.sentry.options);
         }

@@ -14,6 +14,7 @@ export interface ChatWorkerConf {
   };
   uuid?: string;
   port?: number;
+  announcedPort?: number;
   hostname?: string;
   origins?: string;
   threads?: number;
@@ -84,7 +85,7 @@ export class ChatWorker {
 
   constructor(conf: ChatWorkerConf) {
     debug('Init');
-    this._conf = _.defaults(conf, ChatWorker.defaultConf);
+    this._conf = _.defaultsDeep(conf, ChatWorker.defaultConf);
     if (this._conf.sentry) {
       logger.initClient(this._conf.sentry.dsn, this._conf.sentry.options);
     }

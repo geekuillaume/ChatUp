@@ -302,7 +302,7 @@ var ChatUpProtocol = (function () {
             reconnectionAttempts: 3,
             forceNew: true
         },
-        nginxPort: 42632,
+        nginxPort: 80,
         userCountRefreshTimeout: 20000,
         additionalChannels: []
     };

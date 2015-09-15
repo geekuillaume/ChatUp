@@ -1,7 +1,9 @@
 var net = require('net');
 var cluster = require('cluster');
 var _ = require('lodash');
-var debug = require('debug')('ChatUp:ChatWorker:master');
+var debug = require('debug');
+var masterDebug = debug('ChatUp:ChatWorker:master');
+var slaveDebug = debug('ChatUp:ChatWorker:slave');
 function hash(ip, seed) {
     var hash = ip.reduce(function (r, num) {
         r += parseInt(num, 10);
@@ -55,7 +57,7 @@ exports.sticky = function (file, opt) {
             else {
                 worker = _.sample(workers);
             }
-            debug('Sending connection from %s to a worker', c.remoteAddress);
+            masterDebug('Sending connection from %s to a worker %s', c.remoteAddress, worker);
             worker.send('sticky-session:connection', c);
         });
     }
@@ -72,6 +74,7 @@ exports.stickyClient = function (cb) {
         process.on('message', function (msg, socket) {
             if (msg !== 'sticky-session:connection')
                 return;
+            slaveDebug('Got new connection from master %s', socket);
             server.emit('connection', socket);
         });
         var oldListen = server.listen;

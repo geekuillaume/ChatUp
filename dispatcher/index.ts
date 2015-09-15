@@ -67,7 +67,7 @@ export class Dispatcher {
   _redisConnection: redis.RedisClient;
 
   constructor(conf: DispatcherConf = {}) {
-    this._conf = _.defaults(conf, Dispatcher.defaultConf);
+    this._conf = _.defaultsDeep(conf, Dispatcher.defaultConf);
     if (cluster.isMaster) {
       for (var i = 0; i < this._conf.threads; i += 1) {
         cluster.fork();
@@ -112,7 +112,7 @@ export class Dispatcher {
       return;
     }
     var server;
-    if (this._conf.ssl) {
+    if (this._conf.ssl && this._conf.ssl.key) {
       server = https.createServer(this._conf.ssl, this._app);
     } else {
       server = http.createServer(<any> this._app);

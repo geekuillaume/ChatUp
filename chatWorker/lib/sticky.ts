@@ -1,8 +1,10 @@
 import net = require('net');
 import cluster = require('cluster');
 import _ = require('lodash');
-var debug = require('debug')('ChatUp:ChatWorker:master');
+var debug = require('debug');
 
+var masterDebug = debug('ChatUp:ChatWorker:master');
+var slaveDebug = debug('ChatUp:ChatWorker:slave');
 // Copied from the great module of indutny : sticky-session
 // https://github.com/indutny/sticky-session
 // Modified to implement a truly random routing, for benchmark purpose
@@ -78,7 +80,7 @@ export var sticky = function(file, opt: StickyOptions) {
       } else {
         worker = _.sample(workers);
       }
-      debug('Sending connection from %s to a worker', c.remoteAddress);
+      masterDebug('Sending connection from %s to a worker %s', c.remoteAddress, worker);
       worker.send('sticky-session:connection', c);
     });
   }
@@ -97,6 +99,7 @@ export var stickyClient = function(cb:(conf: {}) => any) {
 
     process.on('message', function(msg, socket) {
       if (msg !== 'sticky-session:connection') return;
+      slaveDebug('Got new connection from master %s', socket)
       server.emit('connection', socket);
     });
 

@@ -33,7 +33,7 @@ var WSHandler = (function () {
         this._debug = debugFactory('ChatUp:ChatWorker:slave:' + process.pid);
         this._debug('Slave init');
         this._conf = conf;
-        if (conf.ssl) {
+        if (conf.ssl && conf.ssl.key && conf.ssl.cert) {
             this._app = https.createServer(conf.ssl);
         }
         else {

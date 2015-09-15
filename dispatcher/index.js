@@ -27,7 +27,7 @@ var Dispatcher = (function () {
             res.header('Access-Control-Allow-Headers', 'Content-Type,X-Requested-With');
             next();
         };
-        this._conf = _.defaults(conf, Dispatcher.defaultConf);
+        this._conf = _.defaultsDeep(conf, Dispatcher.defaultConf);
         if (cluster.isMaster) {
             for (var i = 0; i < this._conf.threads; i += 1) {
                 cluster.fork();
@@ -57,7 +57,7 @@ var Dispatcher = (function () {
             return;
         }
         var server;
-        if (this._conf.ssl) {
+        if (this._conf.ssl && this._conf.ssl.key) {
             server = https.createServer(this._conf.ssl, this._app);
         }
         else {

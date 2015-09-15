@@ -63,8 +63,8 @@ function validateWorkerInfos(worker: ChatWorker): Promise<void> {
   }).then(function() {
     worker._conf.host = url.format({
       hostname: worker._conf.hostname,
-      protocol: worker._conf.ssl ? 'https': 'http',
-      port: worker._conf.port.toString()
+      protocol: worker._conf.ssl && worker._conf.ssl.key ? 'https': 'http',
+      port: worker._conf.announcedPort ? worker._conf.announcedPort.toString() : worker._conf.port.toString()
     })
   });
 }
