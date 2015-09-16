@@ -56,7 +56,10 @@ var ChatWorker = (function () {
         nginx: {
             host: '127.0.0.1',
             port: 42631
-        }
+        },
+        port: 42633,
+        announcedPort: 80,
+        annouceSSL: false
     };
     return ChatWorker;
 })();
