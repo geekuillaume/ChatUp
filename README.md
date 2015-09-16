@@ -30,6 +30,23 @@ You can then get the dispatcher IP with `docker inspect --format '{{ .NetworkSet
 
 You can spawn multiple workers and load-balance without having to configure anything else. If you want to add multiple dispatchers, you need to put a load-balancer in front of them.
 
+For the JWT, you can use the awesome [jwt.io](http://jwt.io/) website with the `RS256` algorithm and the [public](examples/JWTKeyExample.pub) and [private](examples/JWTPrivateExample.key) example keys.
+
+Here is a basic JWT and it's decrypted payload:
+
+```
+eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoiVGVzdCAxIiwiX3B1YmxpYyI6eyJuYW1lIjoiVGVzdCAxIn19.1uNu_T7xKtozXgqwoY31ouDo13H-RJ_q-yfqWau2Im-3PXxEcnn_hFuSJii_XJQKpVz1bVJG4vV9o67Wi0vI1B9A2WGHA2Wud9zWHj0UiL-jWhPd_EypMlVhr6AVe6YeP_IeguUAqD6u9tjOQhPrmIQ9zw327Pm9CHpGD_JZAgeHmVNaz67f-4nrRNZkGWrVrPXe2TKaiSz9gAIfMdae0ySY14QMStWHR-80YLwq2lpRmAWamxf6BCZ8f6HMv6k-0QcFb-n8j0wtOrKVxICQvSBhdyHQCTrGqKuRsLBd3eLBAMPlhmWKDyNYsCnvA9A73bYNPMN3w_FOy3jzv6LpBA
+```
+
+```json
+{
+  "name": "Test 1",
+  "_public": {
+    "name": "Test 1"
+  }
+}
+```
+
 ## How to Install
 
 On Ubuntu (tested on 14.04):
