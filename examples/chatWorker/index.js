@@ -28,7 +28,10 @@ var conf = {
     key: process.env.CHATUP_SSLKEY,
     cert: process.env.CHATUP_SSLCERT
   },
-  annouceSSL: process.env.CHATUP_ANNOUCESSL || false
+  annouceSSL: process.env.CHATUP_ANNOUCESSL || false,
+  sentry: {
+    dsn: process.env.CHATUP_SENTRYDSN
+  }
 };
 
 var worker = new ChatUp.ChatWorker(conf);
