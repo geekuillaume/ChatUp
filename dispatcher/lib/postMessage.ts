@@ -24,13 +24,13 @@ export function postMessageHandler(parent: Dispatcher) {
           return res.status(401).send({status: 'error', err: "Wrong JWT content"});
         }
         if (!_.isArray(decoded)) {
-          wrongJWTContent();
+          return wrongJWTContent();
         }
         var toSends = [];
         for (let i = 0; i < decoded.length; i++) {
           var toSend:any = {};
           if (!_.isString(decoded[i].channel) || !_.isString(decoded[i].msg) || !_.isObject(decoded[i].user)) {
-            wrongJWTContent();
+            return wrongJWTContent();
           }
           toSend.channel = decoded[i].channel;
           toSend.msg = decoded[i].msg;
@@ -46,7 +46,7 @@ export function postMessageHandler(parent: Dispatcher) {
         redisMulti.exec((err) => {
           if (err) {
             logger.captureError(err);
-            res.status(500).send(err);
+            return res.status(500).send(err);
           }
           res.sendStatus(200);
         })
