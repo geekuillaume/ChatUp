@@ -117,6 +117,7 @@ var ChatUpProtocol = (function () {
             for (var _i = 0; _i < messages.length; _i++) {
                 var message = messages[_i];
                 message.channel = channel;
+                message.date = _this._lastReceivedMessageTime;
                 if (message.msg) {
                     _this.stats.msgReceived++;
                     for (var _a = 0, _b = _this._msgHandlers; _a < _b.length; _a++) {

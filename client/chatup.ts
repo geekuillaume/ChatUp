@@ -185,6 +185,7 @@ export class ChatUpProtocol {
     } catch (e) {}
     for (let message of messages) {
       message.channel = channel;
+      message.date = this._lastReceivedMessageTime;
       if (message.msg) {
         this.stats.msgReceived++;
         for(let handler of this._msgHandlers) {
