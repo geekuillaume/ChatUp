@@ -1,4 +1,4 @@
-# ChatUp
+# ![pageres](media/promo.png)
 
 ChatUp is a highly performant and scalable webchat plateform.
 
@@ -13,6 +13,29 @@ ChatUp is:
 - fault-tolerant
 - separated in multiple micro-services
 - used at large scale and created by [Streamup](https://streamup.com/)
+
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [Test it with Docker](#test-it-with-docker)
+- [How to Install](#how-to-install)
+- [How to use](#how-to-use)
+  - [Dispatcher](#dispatcher)
+  - [Chat Worker](#chat-worker)
+  - [Redis](#redis)
+  - [Client lib](#client-lib)
+- [FAQ](#faq)
+  - [How to use SSL](#how-to-use-ssl)
+  - [How to transmit user information](#how-to-transmit-user-information)
+  - [How to ban users](#how-to-ban-users)
+  - [How to get messages history of a room](#how-to-get-messages-history-of-a-room)
+  - [How to use additional channels](#how-to-use-additional-channels)
+  - [How to post a message from the API endpoint](#how-to-post-a-message-from-the-api-endpoint)
+- [License](#license)
+- [History](#history)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 ## Test it with Docker
 
