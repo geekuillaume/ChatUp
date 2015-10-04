@@ -41,6 +41,11 @@ function banHandler(parent) {
                 else {
                     redisMulti.persist(keyName);
                 }
+                redisMulti.publish('r_' + toBans[i].channel, JSON.stringify({
+                    ev: "rmUserMsg",
+                    data: toBans[i].name
+                }));
+                debug("Banning %s of channel %s", toBans[i].name, toBans[i].channel);
             }
             redisMulti.exec(function (err) {
                 if (err) {

@@ -94,6 +94,12 @@ var ChatUpClientExample = (function () {
                     '<p class="ChatUpMessageSender">' + messageData.user.name + ' left</p>',
                     '</div>'].join('\n');
             }
+            if (messageData.ev === 'rmUserMsg') {
+                _this._messagesContainer.innerHTML += [
+                    '<div class="ChatUpMessage">',
+                    '<p class="ChatUpMessageSender">User ' + messageData.data + ' has been banned, all of its messages should be cleaned (not done in the test version)</p>',
+                    '</div>'].join('\n');
+            }
             if (atBottom) {
                 _this._messagesContainer.scrollTop = Infinity;
             }

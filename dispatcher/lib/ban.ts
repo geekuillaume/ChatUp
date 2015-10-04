@@ -3,6 +3,7 @@ import _ = require('lodash');
 import {Dispatcher} from '../index';
 import jwt = require('jsonwebtoken');
 import logger = require('../../common/logger');
+import redis = require('redis');
 var debug = require('debug')('ChatUp:Dispatcher:BanHandler');
 
 export function banHandler(parent: Dispatcher) {
@@ -39,8 +40,8 @@ export function banHandler(parent: Dispatcher) {
             }
             toBans.push(toBan);
         }
-        var redisMulti = parent._redisConnection.multi();
 
+        var redisMulti:redis.RedisClient = <any>parent._redisConnection.multi();
         for (let i = 0; i < toBans.length; i++) {
           var keyName = 'chatUp:ban:' + toBans[i].channel + ':' + toBans[i].name;
           redisMulti.set(keyName, 1);
@@ -49,6 +50,11 @@ export function banHandler(parent: Dispatcher) {
           } else {
             redisMulti.persist(keyName);
           }
+          redisMulti.publish('r_' + toBans[i].channel, JSON.stringify({
+            ev: "rmUserMsg",
+            data: toBans[i].name
+          }));
+          debug("Banning %s of channel %s", toBans[i].name, toBans[i].channel);
         }
 
         redisMulti.exec((err) => {
