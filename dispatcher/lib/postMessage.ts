@@ -29,11 +29,23 @@ export function postMessageHandler(parent: Dispatcher) {
         var toSends = [];
         for (let i = 0; i < decoded.length; i++) {
           var toSend:any = {};
-          if (!_.isString(decoded[i].channel) || !_.isString(decoded[i].msg) || !_.isObject(decoded[i].user)) {
+
+          // Test if there is a channel defined (required)
+          if (!_.isString(decoded[i].channel)) {
             return wrongJWTContent();
           }
           toSend.channel = decoded[i].channel;
-          toSend.msg = decoded[i].msg;
+
+          if (_.isString(decoded[i].msg)) { // If this is a message
+            toSend.msg = decoded[i].msg;
+          } else if (_.isString(decoded[i].ev)) { // If this is an event
+            toSend.ev = decoded[i].ev;
+            if (!_.isUndefined(decoded[i].data)) { // Include the data related to the event
+              toSend.data = decoded[i].data;
+            }
+          } else { // This is a wrong message, return an error
+            return wrongJWTContent();
+          }
           toSend.user = decoded[i].user;
           toSends.push(toSend);
         }

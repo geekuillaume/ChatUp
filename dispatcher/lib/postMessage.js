@@ -22,11 +22,22 @@ function postMessageHandler(parent) {
             var toSends = [];
             for (var i = 0; i < decoded.length; i++) {
                 var toSend = {};
-                if (!_.isString(decoded[i].channel) || !_.isString(decoded[i].msg) || !_.isObject(decoded[i].user)) {
+                if (!_.isString(decoded[i].channel)) {
                     return wrongJWTContent();
                 }
                 toSend.channel = decoded[i].channel;
-                toSend.msg = decoded[i].msg;
+                if (_.isString(decoded[i].msg)) {
+                    toSend.msg = decoded[i].msg;
+                }
+                else if (_.isString(decoded[i].ev)) {
+                    toSend.ev = decoded[i].ev;
+                    if (!_.isUndefined(decoded[i].data)) {
+                        toSend.data = decoded[i].data;
+                    }
+                }
+                else {
+                    return wrongJWTContent();
+                }
                 toSend.user = decoded[i].user;
                 toSends.push(toSend);
             }

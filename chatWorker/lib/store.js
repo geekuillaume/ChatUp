@@ -109,7 +109,7 @@ var Room = (function () {
                 logger.captureError(logger.error('Message in Redis is not JSON', { rawMessage: rawMessage }));
                 return _this._debug('Message in Redis is not JSON', rawMessage);
             }
-            if (!_.isObject(message) || !_.isObject(message.user)) {
+            if (!_.isObject(message)) {
                 logger.captureError(logger.error('Incorrect message in Redis', { message: message }));
                 return _this._debug('Incorrect message in Redis', message);
             }

@@ -203,6 +203,8 @@ You can use the `POST /post` API endpoint to send multiple messages to specific 
 
 The message will be broadcasted to all Chat Workers and then to all clients that are subscribed to the channel.
 
+You can also replace the `msg` field by the `ev` field in a message. This message will then be caught by the `onEv` handler in the client lib. When you use the `ev` field, you can also include the `data` field who can be anything and will be passed to each client.
+
 ## License
 
 ChatUp is licensed on GNU GENERAL PUBLIC LICENSE.

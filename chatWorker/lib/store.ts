@@ -148,7 +148,7 @@ export class Room {
       logger.captureError(logger.error('Message in Redis is not JSON', {rawMessage}))
       return this._debug('Message in Redis is not JSON', rawMessage);
     }
-    if (!_.isObject(message) || !_.isObject(message.user)) {
+    if (!_.isObject(message)) {
       logger.captureError(logger.error('Incorrect message in Redis', {message}))
       return this._debug('Incorrect message in Redis', message);
     }
