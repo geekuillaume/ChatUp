@@ -4,6 +4,10 @@ var logger = require('../../common/logger');
 var debug = require('debug')('ChatUp:Dispatcher:BanHandler');
 function banHandler(parent) {
     var handler = function (req, res) {
+        if (!_.isString(req.body)) {
+            logger.captureError(logger.error('Wrong post message JWT'));
+            return res.sendStatus(400);
+        }
         jwt.verify(req.body, parent._conf.jwt.key, parent._conf.jwt.options, function (err, decoded) {
             if (err) {
                 logger.captureError(err);
@@ -13,7 +17,7 @@ function banHandler(parent) {
             function wrongJWTContent() {
                 logger.captureError(new Error('Ban: Wrong JWT content'));
                 debug('Authentication error: Wrong JWT content', req.body, decoded);
-                return res.status(401).send({ status: 'error', err: "Wrong JWT content" });
+                return res.status(400).send({ status: 'error', err: "Wrong JWT content" });
             }
             if (!_.isArray(decoded)) {
                 wrongJWTContent();
