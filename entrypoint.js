@@ -41,7 +41,6 @@ if (process.argv[2] === "dispatcher") {
   });
 
 } else {
-  console.error('First arg should be "dispatcher" or "worker"');
-  console.error("Got:", process.argv);
+  console.error('First arg should be "dispatcher" or "worker", got:' process.argv);
   process.exit(1);
 }
