@@ -52,4 +52,4 @@ RUN npm install
 
 EXPOSE 80
 
-ENTRYPOINT ["./entrypoint.js"]
+# ENTRYPOINT ["./entrypoint.js"]
