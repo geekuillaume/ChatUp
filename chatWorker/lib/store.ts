@@ -179,7 +179,7 @@ export class Room {
   }
 
   verifyBanStatus = (client: ChatUpClient, callback: (err:Object, isBanned: boolean, ttl: number) => any) => {
-    var keyName = 'chatUp:ban:' + this.name + ':' + client._user._public.name;
+    var keyName = 'chatUp:ban:' + this.name + ':' + client._user.name;
     this._parent._redisClient.ttl(keyName, (err, banTTL) => {
       return callback(err, banTTL !== -2, banTTL);
     })

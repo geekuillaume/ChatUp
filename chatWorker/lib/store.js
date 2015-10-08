@@ -138,7 +138,7 @@ var Room = (function () {
             }
         };
         this.verifyBanStatus = function (client, callback) {
-            var keyName = 'chatUp:ban:' + _this.name + ':' + client._user._public.name;
+            var keyName = 'chatUp:ban:' + _this.name + ':' + client._user.name;
             _this._parent._redisClient.ttl(keyName, function (err, banTTL) {
                 return callback(err, banTTL !== -2, banTTL);
             });
