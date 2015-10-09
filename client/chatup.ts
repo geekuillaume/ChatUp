@@ -12,7 +12,6 @@ interface ChatUpConf {
   jwt?: any;
   room: string;
   socketIO: {};
-  nginxPort: number;
   userCountRefreshTimeout: number;
   additionalChannels?: string[];
 }
@@ -35,7 +34,6 @@ export class ChatUpProtocol {
       reconnectionAttempts: 3,
       forceNew: true
     },
-    nginxPort: 80,
     userCountRefreshTimeout: 20000,
     additionalChannels: []
   }
@@ -227,7 +225,6 @@ export class ChatUpProtocol {
       }
       this._pushStream = new PushStream.PushStream({
         host: url.parse(this._worker.host).hostname,
-        port: this._conf.nginxPort,
         pingtimeout: 1000,
         modes: 'websocket|eventsource|longpolling',
         useSSL: (window.location.protocol == 'https:'),

@@ -26450,7 +26450,6 @@ var ChatUpProtocol = (function () {
                 }
                 _this._pushStream = new PushStream.PushStream({
                     host: url.parse(_this._worker.host).hostname,
-                    port: _this._conf.nginxPort,
                     pingtimeout: 1000,
                     modes: 'websocket|eventsource|longpolling',
                     useSSL: (window.location.protocol == 'https:'),
@@ -26593,7 +26592,6 @@ var ChatUpProtocol = (function () {
             reconnectionAttempts: 3,
             forceNew: true
         },
-        nginxPort: 80,
         userCountRefreshTimeout: 20000,
         additionalChannels: []
     };
