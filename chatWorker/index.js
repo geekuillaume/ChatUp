@@ -59,7 +59,7 @@ var ChatWorker = (function () {
         },
         port: 42633,
         announcedPort: 80,
-        annouceSSL: false
+        announceSSL: false
     };
     return ChatWorker;
 })();

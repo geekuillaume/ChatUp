@@ -28,7 +28,7 @@ var conf = {
     key: process.env.CHATUP_SSLKEY,
     cert: process.env.CHATUP_SSLCERT
   },
-  annouceSSL: process.env.CHATUP_ANNOUCESSL || false,
+  announceSSL: process.env.CHATUP_ANNOUNCESSL || false,
   sentry: {
     dsn: process.env.CHATUP_SENTRYDSN
   }

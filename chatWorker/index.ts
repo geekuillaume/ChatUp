@@ -40,7 +40,7 @@ export interface ChatWorkerConf {
     key: string;
     cert: string;
   },
-  annouceSSL?: boolean;
+  announceSSL?: boolean;
   sentry?: {
     dsn: String,
     options: Object
@@ -78,7 +78,7 @@ export class ChatWorker {
     },
     port: 42633,
     announcedPort: 80,
-    annouceSSL: false
+    announceSSL: false
   };
 
   _conf: ChatWorkerConf;
