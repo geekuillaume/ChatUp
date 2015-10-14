@@ -13,7 +13,7 @@ var conf = {
   threads: process.env.CHATUP_THREADS || require('os').cpus().length,
   sticky: process.env.CHATUP_STICKY || true, // For benchmark purpose, we don't want to have sticky sessions
   jwt: {
-    key: process.env.CHATUP_JWTKEY || require('fs').readFileSync(__dirname + '/../JWTKeyExample.pub').toString(),
+    key: String(process.env.CHATUP_JWTKEY).replace(/(?:\\[rn]|[\r\n]+)+/g, "\n") || require('fs').readFileSync(__dirname + '/../JWTKeyExample.pub').toString(),
     options: {
       algorithms: ["RS256"]
     }
