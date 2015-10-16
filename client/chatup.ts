@@ -51,6 +51,8 @@ export class ChatUpProtocol {
 
   _lastReceivedMessageTime = new Date(0);
 
+  _errorCount = 0;
+
   _userCountRefreshTimeout;
   _initPromise: Promise<any>;
 
@@ -92,7 +94,8 @@ export class ChatUpProtocol {
 
     if (!this._error)
       this.status = 'connecting';
-    this._initPromise = this._getChatWorker()
+    this._initPromise = this._waitFor(this._errorCount * 5000)
+      .then(this._getChatWorker)
       .then(this._connectSub)
       .then(() => {
         this.status = 'connected';
@@ -240,6 +243,7 @@ export class ChatUpProtocol {
       }
       this._pushStream.onstatuschange = (status) => {
         if (status === PushStream.PushStream.OPEN) {
+          this._errorCount = 0;
           return resolve();
         }
       }
@@ -254,6 +258,7 @@ export class ChatUpProtocol {
             this._pushStream.connect();
           }, 2000);
         } else {
+          this._errorCount++;
           this.status = 'workerSwitch';
           this._error = {type: 'workerSubConnect', worker: this._worker};
           this._pushStream.disconnect();
@@ -286,6 +291,7 @@ export class ChatUpProtocol {
           }
           this._pubConnected = true;
           this.status = 'authenticated';
+          this._errorCount = 0;
           if (response.comment && response.comment == 'banned') {
             return resolve({banned: true, banTTL: response.banTTL})
           }
@@ -306,6 +312,7 @@ export class ChatUpProtocol {
         this._error = {type: 'workerPubConnect', worker: this._worker};
         this._pubSocket.disconnect();
         this._pubSocket.destroy();
+        this._errorCount++;
         this.init();
       })
     });
@@ -341,6 +348,14 @@ export class ChatUpProtocol {
         this._triggerUserCountUpdate();
         resolve(res.body);
       });
+    });
+  }
+
+  _waitFor = (timeout):Promise<void> => {
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        resolve();
+      }, timeout);
     });
   }
 }

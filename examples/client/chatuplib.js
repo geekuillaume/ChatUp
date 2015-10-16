@@ -26306,6 +26306,7 @@ var ChatUpProtocol = (function () {
         this._dispatcherErrorCount = 0;
         this._pubConnected = false;
         this._lastReceivedMessageTime = new Date(0);
+        this._errorCount = 0;
         this.stats = {
             msgSent: 0,
             msgReceived: 0,
@@ -26323,7 +26324,8 @@ var ChatUpProtocol = (function () {
                 return _this._initPromise;
             if (!_this._error)
                 _this.status = 'connecting';
-            _this._initPromise = _this._getChatWorker()
+            _this._initPromise = _this._waitFor(_this._errorCount * 5000)
+                .then(_this._getChatWorker)
                 .then(_this._connectSub)
                 .then(function () {
                 _this.status = 'connected';
@@ -26465,6 +26467,7 @@ var ChatUpProtocol = (function () {
                 }
                 _this._pushStream.onstatuschange = function (status) {
                     if (status === PushStream.PushStream.OPEN) {
+                        _this._errorCount = 0;
                         return resolve();
                     }
                 };
@@ -26480,6 +26483,7 @@ var ChatUpProtocol = (function () {
                         }, 2000);
                     }
                     else {
+                        _this._errorCount++;
                         _this.status = 'workerSwitch';
                         _this._error = { type: 'workerSubConnect', worker: _this._worker };
                         _this._pushStream.disconnect();
@@ -26511,6 +26515,7 @@ var ChatUpProtocol = (function () {
                         }
                         _this._pubConnected = true;
                         _this.status = 'authenticated';
+                        _this._errorCount = 0;
                         if (response.comment && response.comment == 'banned') {
                             return resolve({ banned: true, banTTL: response.banTTL });
                         }
@@ -26531,6 +26536,7 @@ var ChatUpProtocol = (function () {
                     _this._error = { type: 'workerPubConnect', worker: _this._worker };
                     _this._pubSocket.disconnect();
                     _this._pubSocket.destroy();
+                    _this._errorCount++;
                     _this.init();
                 });
             });
@@ -26563,6 +26569,13 @@ var ChatUpProtocol = (function () {
                     _this._triggerUserCountUpdate();
                     resolve(res.body);
                 });
+            });
+        };
+        this._waitFor = function (timeout) {
+            return new Promise(function (resolve, reject) {
+                setTimeout(function () {
+                    resolve();
+                }, timeout);
             });
         };
         this._conf = conf;
