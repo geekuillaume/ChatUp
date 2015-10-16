@@ -26324,7 +26324,7 @@ var ChatUpProtocol = (function () {
                 return _this._initPromise;
             if (!_this._error)
                 _this.status = 'connecting';
-            _this._initPromise = _this._waitFor(_this._errorCount * 5000)
+            _this._initPromise = helpers_1.timeoutPromise(_.max([_this._errorCount * 5000, 30000]))
                 .then(_this._getChatWorker)
                 .then(_this._connectSub)
                 .then(function () {
@@ -26559,7 +26559,8 @@ var ChatUpProtocol = (function () {
                             _this.status = 'noWorker';
                         else
                             _this.status = 'dispatcherError';
-                        return resolve(helpers_1.timeoutPromise(2000).then(_this._getChatWorker));
+                        _this._errorCount++;
+                        return resolve(helpers_1.timeoutPromise(_.max([_this._errorCount * 5000, 30000])).then(_this._getChatWorker));
                     }
                     _this._error = null;
                     _this._dispatcherErrorCount = 0;
@@ -26569,13 +26570,6 @@ var ChatUpProtocol = (function () {
                     _this._triggerUserCountUpdate();
                     resolve(res.body);
                 });
-            });
-        };
-        this._waitFor = function (timeout) {
-            return new Promise(function (resolve, reject) {
-                setTimeout(function () {
-                    resolve();
-                }, timeout);
             });
         };
         this._conf = conf;
