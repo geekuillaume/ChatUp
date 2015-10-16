@@ -92,9 +92,10 @@ export class ChatUpProtocol {
     if (this._initPromise && !this._error)
       return this._initPromise;
 
+
     if (!this._error)
       this.status = 'connecting';
-    this._initPromise = timeoutPromise(_.max([this._errorCount * 5000, 30000]))
+    this._initPromise = timeoutPromise(_.min([this._errorCount * 5000, 30000]))
       .then(this._getChatWorker)
       .then(this._connectSub)
       .then(() => {
@@ -338,7 +339,7 @@ export class ChatUpProtocol {
             this.status = 'dispatcherError';
           // Try again after some increasing time
           this._errorCount++;
-          return resolve(timeoutPromise(_.max([this._errorCount * 5000, 30000])).then(this._getChatWorker));
+          return resolve(timeoutPromise(_.min([this._errorCount * 5000, 30000])).then(this._getChatWorker));
         }
         this._error = null;
         this._dispatcherErrorCount = 0;
