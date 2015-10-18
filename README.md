@@ -1,5 +1,7 @@
 # ![pageres](media/promo.png)
 
+[![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/geekuillaume/ChatUp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
+
 ChatUp is a highly performant and scalable webchat plateform.
 
 It uses [NodeJS](https://nodejs.org/), [Redis](http://redis.io/) and [Nginx](http://nginx.org/) with the [PushStream Module](https://github.com/wandenberg/nginx-push-stream-module).
