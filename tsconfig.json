@@ -30,6 +30,15 @@
         "./dispatcher/lib/postMessage.ts",
         "./dispatcher/lib/stats.ts",
         "./dispatcher/lib/workersManager.ts",
-        "./index.ts"
+        "./index.ts",
+        "./typings/debug/debug.d.ts",
+        "./typings/es6-promise/es6-promise.d.ts",
+        "./typings/express/express.d.ts",
+        "./typings/jsonwebtoken/jsonwebtoken.d.ts",
+        "./typings/lodash/lodash.d.ts",
+        "./typings/node/node.d.ts",
+        "./typings/redis/redis.d.ts",
+        "./typings/socket.io/socket.io.d.ts",
+        "./typings/superagent/superagent.d.ts"
     ]
 }

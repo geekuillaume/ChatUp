@@ -7,7 +7,7 @@ export function initClient(sentryDSN: String, options: Object = {}) {
     return;
   }
   client = new raven.Client(sentryDSN, options);
-  client.patchGlobal((e) => {
+  client.patchGlobal((status, e) => {
     console.error('Uncaught Exception', e, e.stack);
     process.exit(1);
   })
