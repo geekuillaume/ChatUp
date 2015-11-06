@@ -16,10 +16,10 @@
     ],
     "files": [
         "./chatWorker/index.ts",
-        "./chatWorker/lib/WSHandler.ts",
         "./chatWorker/lib/sticky.ts",
         "./chatWorker/lib/store.ts",
         "./chatWorker/lib/workerManager.ts",
+        "./chatWorker/lib/WSHandler.ts",
         "./client/chatup.ts",
         "./client/lib/helpers.ts",
         "./common/logger.ts",
