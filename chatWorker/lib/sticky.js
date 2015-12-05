@@ -28,9 +28,6 @@ var defaultOptions = {
 exports.sticky = function (file, opt) {
     var options = _.defaults(opt, defaultOptions);
     var server;
-    cluster.setupMaster({
-        exec: file
-    });
     if (cluster.isMaster) {
         var workers = [];
         function spawn(i) {
@@ -39,7 +36,6 @@ exports.sticky = function (file, opt) {
                 console.error('sticky-session: worker died');
                 spawn(i);
             });
-            workers[i].send({ type: 'sticky-startconfig', data: opt.data });
             workers[i].on('error', function (err) {
                 console.log('Error:', err);
             });
@@ -63,26 +59,20 @@ exports.sticky = function (file, opt) {
     }
     return { server: server, workers: workers };
 };
-exports.stickyClient = function (cb) {
-    process.on('message', function (message) {
-        if (message.type !== 'sticky-startconfig') {
+exports.stickyClient = function (server) {
+    if (!server)
+        throw new Error('Worker hasn\'t created server!');
+    process.on('message', function (msg, socket) {
+        if (msg !== 'sticky-session:connection')
             return;
-        }
-        var server = cb(message.data);
-        if (!server)
-            throw new Error('Worker hasn\'t created server!');
-        process.on('message', function (msg, socket) {
-            if (msg !== 'sticky-session:connection')
-                return;
-            slaveDebug('Got new connection from master %s', socket);
-            server.emit('connection', socket);
-        });
-        var oldListen = server.listen;
-        server.listen = function listen() {
-            var lastArg = arguments[arguments.length - 1];
-            if (typeof lastArg === 'function')
-                lastArg();
-            return oldListen.call(this, null);
-        };
+        slaveDebug('Got new connection from master %s', socket);
+        server.emit('connection', socket);
     });
+    var oldListen = server.listen;
+    server.listen = function listen() {
+        var lastArg = arguments[arguments.length - 1];
+        if (typeof lastArg === 'function')
+            lastArg();
+        return oldListen.call(this, null);
+    };
 };

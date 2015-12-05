@@ -74,17 +74,17 @@ export class Store {
   _pub = (roomName, message) => {
     this._debug("Sending on redis in room %s", roomName);
     this._redisClient.publish("r_" + roomName, JSON.stringify(message));
-    this._redisClient.multi()
-      .lpush('chatUp:room:r_' + roomName, JSON.stringify(message))
+    var multi = <any>this._redisClient.multi();
+    multi.lpush('chatUp:room:r_' + roomName, JSON.stringify(message))
       // We now trim to only keep the n first items of the list
-      .ltrim('chatUp:room:r_' + roomName, 0, this._conf.messageHistory.size - 1) // We substract one because the trim is inclusive
-      .expire('chatUp:room:r_' + roomName, this._conf.messageHistory.expire)
-      .exec((err, op) => {
-        if (err) {
-          console.error('Error while saving message to redis', err);
-          logger.captureError(logger.error('Redis sending error', {err}));
-        }
-      });
+    multi.ltrim('chatUp:room:r_' + roomName, 0, this._conf.messageHistory.size - 1) // We substract one because the trim is inclusive
+    multi.expire('chatUp:room:r_' + roomName, this._conf.messageHistory.expire)
+    multi.exec((err, op) => {
+      if (err) {
+        console.error('Error while saving message to redis', err);
+        logger.captureError(logger.error('Redis sending error', {err}));
+      }
+    });
   }
 
 }
@@ -178,10 +178,16 @@ export class Room {
     }
   }
 
-  verifyBanStatus = (client: ChatUpClient, callback: (err:Object, isBanned: boolean, ttl: number) => any) => {
-    var keyName = 'chatUp:ban:' + this.name + ':' + client._user.name;
-    this._parent._redisClient.ttl(keyName, (err, banTTL) => {
-      return callback(err, banTTL !== -2, banTTL);
+  verifyBanStatus = (user) => {
+    return new Promise<any>((resolve, reject) => {
+      var keyName = 'chatUp:ban:' + this.name + ':' + user.name;
+      this._parent._redisClient.ttl(keyName, (err, banTTL) => {
+        if (err) {return reject(err);}
+        resolve({
+          isBanned: banTTL !== -2,
+          banTTL: banTTL
+        });
+      });
     })
   }
 }

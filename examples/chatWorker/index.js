@@ -36,6 +36,25 @@ var conf = {
 
 var worker = new ChatUp.ChatWorker(conf);
 
+
+worker.registerMiddleware(function(ctx, next) { // Replace fuck by ****
+  ctx.msg.msg = ctx.msg.msg.replace('fuck', '****');
+  next();
+});
+
+worker.registerMiddleware(function(ctx, next) { // Ignore bad messages
+  if (ctx.msg.msg.indexOf('bad') != -1) {
+    return next({err: 'Bad message !'});
+  } else {
+    next();
+  }
+});
+
+// Be careful as the worker.listen initiate the cluster module of NodeJS
+// This file will be executed on each slave so don't put anything that doesn't belong to a slave
+// You can put a code that will only execute in the master with the condition
+// if (require('cluster').isMaster) {}
+
 worker.listen().then(function() {
   console.log('Chat Worker started !');
 }).catch(function(err) {

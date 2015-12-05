@@ -5,9 +5,6 @@
   "path": "typings",
   "bundle": "typings/tsd.d.ts",
   "installed": {
-    "lodash/lodash.d.ts": {
-      "commit": "3d80989bbba37cbe6ef0682c94fa7d8cb95f196d"
-    },
     "express/express.d.ts": {
       "commit": "3d80989bbba37cbe6ef0682c94fa7d8cb95f196d"
     },
@@ -31,6 +28,9 @@
     },
     "jsonwebtoken/jsonwebtoken.d.ts": {
       "commit": "52dc8fc39354569838b7bc09e24df690b852b4d9"
+    },
+    "lodash/lodash.d.ts": {
+      "commit": "fa04c80f4a889613b96cb4f283848c61a9f64233"
     }
   }
 }

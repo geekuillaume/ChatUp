@@ -103,7 +103,7 @@ function startAlivePing(worker, redisConnection) {
             return registerInRedis(worker, redisConnection, nginxStats);
         }).catch(function (err) {
             logger.captureError(logger.error('Nginx stats error', { err: err }));
-            console.log(err.stack);
+            debug(err.stack);
             registerInRedis(worker, redisConnection, { err: 'nginxStats' });
         });
     }, worker._conf.expireDelay * 0.5);

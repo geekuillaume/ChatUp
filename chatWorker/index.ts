@@ -1,11 +1,14 @@
 import _ = require('lodash');
 var debug = require('debug')('ChatUp:ChatWorker:master');
+import cluster = require('cluster');
+import redis = require('redis');
 import {sticky} from './lib/sticky';
 import {WSHandler, WSUser} from './lib/WSHandler';
 import {registerWorker} from './lib/workerManager';
-import {Store} from './lib/store';
-import cluster = require('cluster');
+import {Store, Room} from './lib/store';
 import logger = require('../common/logger');
+import {startWSHandler} from './lib/WSHandler';
+import {banMiddleware} from './lib/middleware';
 
 export interface ChatWorkerConf {
   redis?: {
@@ -44,7 +47,8 @@ export interface ChatWorkerConf {
   sentry?: {
     dsn: String,
     options: Object
-  }
+  },
+  middlewares?: ChatUpMiddleware[];
 };
 
 export interface WSHandlerWorker extends cluster.Worker {
@@ -54,6 +58,14 @@ export interface WSHandlerWorker extends cluster.Worker {
 export interface ChatMessage {
   msg: string;
   user: {};
+}
+
+export interface ChatUpMiddleware {(ctx: ChatUpMiddlewareContext, next: (err?: any)=>void): any}
+export interface ChatUpMiddlewareContext {
+  redisConnection: redis.RedisClient,
+  msg: Object,
+  user: Object,
+  room: Room
 }
 
 export class ChatWorker {
@@ -78,7 +90,8 @@ export class ChatWorker {
     },
     port: 42633,
     announcedPort: 80,
-    announceSSL: false
+    announceSSL: false,
+    middlewares: []
   };
 
   _conf: ChatWorkerConf;
@@ -87,37 +100,49 @@ export class ChatWorker {
   _server: any;
   _store: Store;
 
+
   constructor(conf: ChatWorkerConf) {
     debug('Init');
     this._conf = _.defaultsDeep(conf, ChatWorker.defaultConf);
     if (this._conf.sentry) {
       logger.initClient(this._conf.sentry.dsn, this._conf.sentry.options);
     }
-    var infos = sticky(__dirname + '/lib/WSHandler.js', {
-      sticky: this._conf.sticky,
-      threads: this._conf.threads,
-      data: this._conf
-    });
-    this._server = infos.server;
-    this._workers = infos.workers;
-    this._store = new Store(this._conf, true);
+    this._conf.middlewares.push(banMiddleware);
+
     debug('Finished Init');
   }
 
+  registerMiddleware(middleware: ChatUpMiddleware):void {
+    this._conf.middlewares.push(middleware);
+  }
+
   listen():Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      debug('Starting listening on %s', this._conf.port);
-      this._server.listen(this._conf.port || 0, (err) => {
-        if (err) {
-          logger.captureError(err);
-          debug('Error while listening', err);
-          return reject(err);
-        }
-        this._conf.port = this._conf.port || this._server.address().port;
-        debug('Listening on %s', this._conf.port);
-        debug('Registering the worker');
-        registerWorker(this).then(resolve).catch(reject);
+    if (cluster.isMaster) {
+      debug('Starting childrens');
+      var infos = sticky(__dirname + '/lib/WSHandler.js', {
+        sticky: this._conf.sticky,
+        threads: this._conf.threads
       });
-    });
+      this._server = infos.server;
+      this._workers = infos.workers;
+      this._store = new Store(this._conf, true);
+      debug('Children started');
+      return new Promise<void>((resolve, reject) => {
+        debug('Starting listening on %s', this._conf.port);
+        this._server.listen(this._conf.port || 0, (err) => {
+          if (err) {
+            logger.captureError(err);
+            debug('Error while listening', err);
+            return reject(err);
+          }
+          this._conf.port = this._conf.port || this._server.address().port;
+          debug('Listening on %s', this._conf.port);
+          debug('Registering the worker');
+          registerWorker(this).then(resolve).catch(reject);
+        });
+      });
+    } else {
+      return Promise.resolve(<any>startWSHandler(this._conf));
+    }
   }
 }

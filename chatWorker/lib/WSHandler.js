@@ -8,10 +8,13 @@ var _ = require('lodash');
 var store_1 = require('./store');
 var sticky_1 = require('./sticky');
 var logger = require('../../common/logger');
-sticky_1.stickyClient(function (conf) {
+var middleware_1 = require('./middleware');
+function startWSHandler(conf) {
     var handler = new WSHandler(conf);
-    return handler.server;
-});
+    sticky_1.stickyClient(handler.server);
+    return handler;
+}
+exports.startWSHandler = startWSHandler;
 var WSHandler = (function () {
     function WSHandler(conf) {
         var _this = this;
@@ -100,37 +103,47 @@ var ChatUpClient = (function () {
             }
             _this._room = _this._parent._store.joinRoom(msg.room, _this);
             _this._debug('Joined room %s', _this._room.name);
-            _this._room.verifyBanStatus(_this, function (err, isBanned, banTTL) {
-                if (isBanned) {
-                    return cb({ status: 'ok', comment: 'banned', banTTL: banTTL });
+            _this._room.verifyBanStatus(_this._user).then(function (info) {
+                if (info.isBanned) {
+                    return cb({ status: 'ok', comment: 'banned', banTTL: info.banTTL });
                 }
                 cb('ok');
+            }).catch(function (err) {
+                logger.captureError(err);
+                cb({ status: 'err', err: err });
             });
         };
         this._onSay = function (msg, cb) {
-            if (!_.isObject(msg) || !_.isString(msg.msg)) {
-                logger.captureError(logger.error('Wrong format', { msg: msg }));
-                return cb({ status: 'error', err: 'Wrong format' });
-            }
-            if (!_this._room) {
-                logger.captureError(logger.error('No room', { msg: msg }));
-                return cb({ status: 'error', err: 'Never joined a room' });
-            }
-            _this._room.verifyBanStatus(_this, function (err, isBanned, banTTL) {
-                if (err) {
-                    logger.captureError(logger.error('Internal server error', { err: err }));
-                    return cb({ status: 'error', err: 'Internal server error' });
+            try {
+                if (!_.isObject(msg) || !_.isString(msg.msg)) {
+                    logger.captureError(logger.error('Wrong format', { msg: msg }));
+                    return cb({ status: 'error', err: 'Wrong format' });
                 }
-                if (isBanned) {
-                    return cb({ status: 'error', err: 'banned', ttl: banTTL });
+                if (!_this._room) {
+                    logger.captureError(logger.error('No room', { msg: msg }));
+                    return cb({ status: 'error', err: 'Never joined a room' });
                 }
-                _this._room.say({
-                    user: _this._user._public,
-                    msg: msg.msg
+                middleware_1.runMiddlewares(_this._parent._conf.middlewares, {
+                    user: _this._user,
+                    redisConnection: _this._room._parent._redisClient,
+                    msg: msg,
+                    room: _this._room
+                }).then(function () {
+                    _this._room.say({
+                        user: _this._user._public,
+                        msg: msg.msg
+                    });
+                    _this._debug('Saying', msg.msg);
+                    cb('ok');
+                }).catch(function (err) {
+                    logger.captureError(err);
+                    return cb({ status: 'error', err: err });
                 });
-                _this._debug('Saying', msg.msg);
-                cb('ok');
-            });
+            }
+            catch (err) {
+                logger.captureError(err);
+                return cb({ status: 'error', err: err });
+            }
         };
         this._onDisconnect = function () {
             _this._debug('Client disconnected');

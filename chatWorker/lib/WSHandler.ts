@@ -9,11 +9,13 @@ import {ChatWorker, ChatWorkerConf} from '../index';
 import {Store, Room} from './store';
 import {stickyClient} from './sticky';
 import logger = require('../../common/logger');
+import {runMiddlewares} from './middleware';
 
-stickyClient(function(conf) {
+export function startWSHandler(conf) {
   var handler = new WSHandler(conf);
-  return handler.server;
-})
+  stickyClient(handler.server);
+  return handler;
+}
 
 export class WSHandler {
   _io: SocketIO.Server;
@@ -131,38 +133,47 @@ export class ChatUpClient {
     }
     this._room = this._parent._store.joinRoom(msg.room, this);
     this._debug('Joined room %s', this._room.name);
-    this._room.verifyBanStatus(this, (err, isBanned, banTTL) => {
-      if (isBanned) {
-        return cb({status: 'ok', comment: 'banned', banTTL: banTTL});
+    this._room.verifyBanStatus(this._user).then((info) => {
+      if (info.isBanned) {
+        return cb({status: 'ok', comment: 'banned', banTTL: info.banTTL});
       }
       cb('ok');
+    }).catch((err) => {
+      logger.captureError(err);
+      cb({status: 'err', err: err});
     });
   }
 
   _onSay = (msg, cb) => {
-    if (!_.isObject(msg) || !_.isString(msg.msg)) {
-      logger.captureError(logger.error('Wrong format', {msg}))
-      return cb({status: 'error', err: 'Wrong format'});
-    }
-    if (!this._room) {
-      logger.captureError(logger.error('No room', {msg}))
-      return cb({status: 'error', err: 'Never joined a room'});
-    }
-    this._room.verifyBanStatus(this, (err, isBanned, banTTL) => {
-        if (err) {
-          logger.captureError(logger.error('Internal server error', {err}))
-          return cb({status: 'error', err: 'Internal server error'})
-        }
-        if (isBanned) {
-          return cb({status: 'error', err: 'banned', ttl: banTTL})
-        }
+    try {
+      if (!_.isObject(msg) || !_.isString(msg.msg)) {
+        logger.captureError(logger.error('Wrong format', {msg}))
+        return cb({status: 'error', err: 'Wrong format'});
+      }
+      if (!this._room) {
+        logger.captureError(logger.error('No room', {msg}))
+        return cb({status: 'error', err: 'Never joined a room'});
+      }
+      runMiddlewares(this._parent._conf.middlewares, {
+        user: this._user,
+        redisConnection: this._room._parent._redisClient,
+        msg: msg,
+        room: this._room
+      }).then(() => {
         this._room.say({
           user: this._user._public,
           msg: msg.msg
         });
         this._debug('Saying', msg.msg);
         cb('ok');
+      }).catch((err) => {
+        logger.captureError(err);
+        return cb({status: 'error', err});
       })
+    } catch(err) {
+      logger.captureError(err);
+      return cb({status: 'error', err});
+    }
   }
 
   _onDisconnect = () => {

@@ -16,6 +16,7 @@
     ],
     "files": [
         "./chatWorker/index.ts",
+        "./chatWorker/lib/middleware.ts",
         "./chatWorker/lib/sticky.ts",
         "./chatWorker/lib/store.ts",
         "./chatWorker/lib/workerManager.ts",
@@ -39,6 +40,10 @@
         "./typings/node/node.d.ts",
         "./typings/redis/redis.d.ts",
         "./typings/socket.io/socket.io.d.ts",
-        "./typings/superagent/superagent.d.ts"
-    ]
+        "./typings/superagent/superagent.d.ts",
+        "./typings/tsd.d.ts"
+    ],
+    "atom": {
+        "rewriteTsconfig": true
+    }
 }

@@ -46,10 +46,6 @@ export var sticky = function(file, opt: StickyOptions) {
 
   var server;
 
-  cluster.setupMaster({
-    exec: file
-  });
-
   // Master will spawn `num` workers
   if (cluster.isMaster) {
     var workers: cluster.Worker[] = [];
@@ -60,7 +56,6 @@ export var sticky = function(file, opt: StickyOptions) {
         console.error('sticky-session: worker died');
         spawn(i);
       });
-      workers[i].send({type: 'sticky-startconfig', data: opt.data});
       workers[i].on('error', function(err) {
         console.log('Error:', err);
       })
@@ -88,28 +83,21 @@ export var sticky = function(file, opt: StickyOptions) {
   return {server, workers};
 }
 
-export var stickyClient = function(cb:(conf: {}) => any) {
-  process.on('message', function(message) {
-    if (message.type !== 'sticky-startconfig') {
-      return;
-    }
-    var server = cb(message.data);
+export var stickyClient = function(server) {
+  if (!server) throw new Error('Worker hasn\'t created server!');
 
-    if (!server) throw new Error('Worker hasn\'t created server!');
-
-    process.on('message', function(msg, socket) {
-      if (msg !== 'sticky-session:connection') return;
-      slaveDebug('Got new connection from master %s', socket)
-      server.emit('connection', socket);
-    });
-
-
-    // Monkey patch server to do not bind to port
-    var oldListen = server.listen;
-    server.listen = function listen() {
-      var lastArg = arguments[arguments.length - 1];
-      if (typeof lastArg === 'function') lastArg();
-      return oldListen.call(this, null);
-    };
+  process.on('message', function(msg, socket) {
+    if (msg !== 'sticky-session:connection') return;
+    slaveDebug('Got new connection from master %s', socket)
+    server.emit('connection', socket);
   });
+
+
+  // Monkey patch server to do not bind to port
+  var oldListen = server.listen;
+  server.listen = function listen() {
+    var lastArg = arguments[arguments.length - 1];
+    if (typeof lastArg === 'function') lastArg();
+    return oldListen.call(this, null);
+  };
 }

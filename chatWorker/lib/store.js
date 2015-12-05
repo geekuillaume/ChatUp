@@ -41,11 +41,11 @@ var Store = (function () {
         this._pub = function (roomName, message) {
             _this._debug("Sending on redis in room %s", roomName);
             _this._redisClient.publish("r_" + roomName, JSON.stringify(message));
-            _this._redisClient.multi()
-                .lpush('chatUp:room:r_' + roomName, JSON.stringify(message))
-                .ltrim('chatUp:room:r_' + roomName, 0, _this._conf.messageHistory.size - 1)
-                .expire('chatUp:room:r_' + roomName, _this._conf.messageHistory.expire)
-                .exec(function (err, op) {
+            var multi = _this._redisClient.multi();
+            multi.lpush('chatUp:room:r_' + roomName, JSON.stringify(message));
+            multi.ltrim('chatUp:room:r_' + roomName, 0, _this._conf.messageHistory.size - 1);
+            multi.expire('chatUp:room:r_' + roomName, _this._conf.messageHistory.expire);
+            multi.exec(function (err, op) {
                 if (err) {
                     console.error('Error while saving message to redis', err);
                     logger.captureError(logger.error('Redis sending error', { err: err }));
@@ -137,10 +137,18 @@ var Room = (function () {
                 _this._parent._rooms[_this.name] = null;
             }
         };
-        this.verifyBanStatus = function (client, callback) {
-            var keyName = 'chatUp:ban:' + _this.name + ':' + client._user.name;
-            _this._parent._redisClient.ttl(keyName, function (err, banTTL) {
-                return callback(err, banTTL !== -2, banTTL);
+        this.verifyBanStatus = function (user) {
+            return new Promise(function (resolve, reject) {
+                var keyName = 'chatUp:ban:' + _this.name + ':' + user.name;
+                _this._parent._redisClient.ttl(keyName, function (err, banTTL) {
+                    if (err) {
+                        return reject(err);
+                    }
+                    resolve({
+                        isBanned: banTTL !== -2,
+                        banTTL: banTTL
+                    });
+                });
             });
         };
         this._debug = debugFactory('ChatUp:Store:Room:' + name + ':' + process.pid);
