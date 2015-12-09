@@ -1,3 +1,4 @@
+"use strict";
 var _ = require('lodash');
 var debug = require('debug')('ChatUp:ChatWorker:master');
 var cluster = require('cluster');
@@ -11,6 +12,15 @@ var middleware_1 = require('./lib/middleware');
 var ChatWorker = (function () {
     function ChatWorker(conf) {
         debug('Init');
+        if (cluster.isMaster) {
+            console.log("      _______ _     _ _______ _______ _     _  _____ ");
+            console.log("      |       |_____| |_____|    |    |     | |_____]");
+            console.log("      |_____  |     | |     |    |    |_____| |      ");
+            console.log("                                                     ");
+            console.log("");
+            console.log("👔  Preparing Worker");
+            console.log("");
+        }
         this._conf = _.defaultsDeep(conf, ChatWorker.defaultConf);
         if (this._conf.sentry) {
             logger.initClient(this._conf.sentry.dsn, this._conf.sentry.options);
@@ -45,6 +55,12 @@ var ChatWorker = (function () {
                     debug('Listening on %s', _this._conf.port);
                     debug('Registering the worker');
                     workerManager_1.registerWorker(_this).then(resolve).catch(reject);
+                    console.log("🙌  Worker started !");
+                    console.log("👂  Listening on port %s and announcing %s:%s", _this._conf.port, _this._conf.hostname, _this._conf.announcedPort);
+                    setTimeout(function () {
+                        console.log("");
+                        console.log("👌  Need help with ChatUp ? Contact me @ http://besson.co/");
+                    }, 2000);
                 });
             });
         }

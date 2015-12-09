@@ -103,6 +103,15 @@ export class ChatWorker {
 
   constructor(conf: ChatWorkerConf) {
     debug('Init');
+    if (cluster.isMaster) {
+      console.log("      _______ _     _ _______ _______ _     _  _____ ");
+      console.log("      |       |_____| |_____|    |    |     | |_____]");
+      console.log("      |_____  |     | |     |    |    |_____| |      ");
+      console.log("                                                     ");
+      console.log("");
+      console.log("👔  Preparing Worker");
+      console.log("");
+    }
     this._conf = _.defaultsDeep(conf, ChatWorker.defaultConf);
     if (this._conf.sentry) {
       logger.initClient(this._conf.sentry.dsn, this._conf.sentry.options);
@@ -139,6 +148,14 @@ export class ChatWorker {
           debug('Listening on %s', this._conf.port);
           debug('Registering the worker');
           registerWorker(this).then(resolve).catch(reject);
+          console.log("🙌  Worker started !");
+          console.log("👂  Listening on port %s and announcing %s:%s", this._conf.port, this._conf.hostname, this._conf.announcedPort);
+
+          setTimeout(function() {
+            console.log("");
+            console.log("👌  Need help with ChatUp ? Contact me @ http://besson.co/")
+          }, 2000);
+
         });
       });
     } else {

@@ -1,13 +1,13 @@
 {
-  "name": "ChatUp",
-  "version": "0.0.1",
+  "name": "chatup",
+  "version": "1.0.0",
   "description": "Extensible, Scalable, Fault-Tolerant Chat platform in NodeJS",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "entrypoint.js"
   },
-  "author": "Guillaume Besson (@geekuillaup)",
+  "author": "Guillaume Besson (@geekuillaume)",
   "license": "GPL-3.0",
   "repository": {
     "type": "git",
