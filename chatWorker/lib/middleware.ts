@@ -3,7 +3,7 @@ import {ChatUpMiddleware, ChatUpMiddlewareContext} from '../';
 
 export function runMiddlewares(middlewares: ChatUpMiddleware[], ctx: ChatUpMiddlewareContext) {
   return new Promise<void>(function(resolve, reject) {
-    var results = new Array(middlewares.length); // Used to prevent double callback
+    var results = []; // Used to prevent double callback
     debug('Starting %s middlewares', middlewares.length);
     runMiddleware(0);
     function runMiddleware(i: number) {
@@ -11,9 +11,9 @@ export function runMiddlewares(middlewares: ChatUpMiddleware[], ctx: ChatUpMiddl
         debug('Finished all middlewares');
         return resolve();
       }
-      function next(err) {
+      var next = function(err) {
         if (results[i]) {
-          console.error("Double next or stopAndRespond in middleware %i, ignoring, verify your function", i + 1);
+          console.error("Double next in middleware %s, ignoring, verify your function", i, err, middlewares[i].toString());
           return;
         }
         results[i] = true;

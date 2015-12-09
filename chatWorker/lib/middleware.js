@@ -1,7 +1,8 @@
+"use strict";
 var debug = require('debug')('ChatUp:ChatWorker:middleware');
 function runMiddlewares(middlewares, ctx) {
     return new Promise(function (resolve, reject) {
-        var results = new Array(middlewares.length);
+        var results = [];
         debug('Starting %s middlewares', middlewares.length);
         runMiddleware(0);
         function runMiddleware(i) {
@@ -9,9 +10,9 @@ function runMiddlewares(middlewares, ctx) {
                 debug('Finished all middlewares');
                 return resolve();
             }
-            function next(err) {
+            var next = function (err) {
                 if (results[i]) {
-                    console.error("Double next or stopAndRespond in middleware %i, ignoring, verify your function", i + 1);
+                    console.error("Double next in middleware %s, ignoring, verify your function", i, err, middlewares[i].toString());
                     return;
                 }
                 results[i] = true;
@@ -23,7 +24,7 @@ function runMiddlewares(middlewares, ctx) {
                     debug('Middleware %s finished', i);
                     return runMiddleware(i + 1);
                 }
-            }
+            };
             debug('Running middleware %s', i);
             middlewares[i](ctx, next);
         }
