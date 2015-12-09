@@ -1,3 +1,4 @@
+"use strict";
 var socketio = require('socket.io');
 var http = require('http');
 var https = require('https');
@@ -137,7 +138,7 @@ var ChatUpClient = (function () {
                     cb('ok');
                 }).catch(function (err) {
                     logger.captureError(err);
-                    return cb({ status: 'error', err: err });
+                    return cb(err);
                 });
             }
             catch (err) {

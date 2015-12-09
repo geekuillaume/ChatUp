@@ -168,8 +168,8 @@ export class ChatUpClient {
         cb('ok');
       }).catch((err) => {
         logger.captureError(err);
-        return cb({status: 'error', err});
-      })
+        return cb(err);
+      });
     } catch(err) {
       logger.captureError(err);
       return cb({status: 'error', err});
