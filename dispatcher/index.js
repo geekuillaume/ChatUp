@@ -28,6 +28,9 @@ var Dispatcher = (function () {
             res.header('Access-Control-Allow-Headers', 'Content-Type,X-Requested-With');
             next();
         };
+        this.registerPlugin = function (pluginFct) {
+            pluginFct(_this);
+        };
         if (cluster.isMaster) {
             console.log("      _______ _     _ _______ _______ _     _  _____ ");
             console.log("      |       |_____| |_____|    |    |     | |_____]");

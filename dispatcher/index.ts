@@ -117,6 +117,10 @@ export class Dispatcher {
     next();
   }
 
+  registerPlugin = (pluginFct: (parent:Dispatcher) => void) => {
+    pluginFct(this);
+  }
+
   listen(port: number, callback: Function) {
     if (cluster.isMaster) {
       console.log("🙌  Dispatcher started !");
