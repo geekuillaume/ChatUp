@@ -29,8 +29,14 @@ function getNginxStats(worker: ChatWorker): Promise<any> {
           try {
             var rawStats = JSON.parse(res.text);
             var channelsStats = _.reduce(rawStats.infos, (stats, info:any) => {
+              let channelName = info.channel;
+              if (_.startsWith(info.channel, 'm_')) {
+                channelName = channelName.slice(2);
+              } else if (_.startsWith(info.channel, 'e_')) {
+                return stats;
+              }
               if (Number(info.subscribers) > 0) {
-                stats[info.channel] = Number(info.subscribers);
+                stats[channelName] = Number(info.subscribers);
               }
               return stats;
             }, {});

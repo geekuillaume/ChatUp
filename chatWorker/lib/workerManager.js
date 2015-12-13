@@ -1,3 +1,4 @@
+"use strict";
 var got = require('got');
 var debug = require('debug')('ChatUp:ChatWorker:master');
 var uuid = require('node-uuid');
@@ -26,8 +27,15 @@ function getNginxStats(worker) {
             try {
                 var rawStats = JSON.parse(res.text);
                 var channelsStats = _.reduce(rawStats.infos, function (stats, info) {
+                    var channelName = info.channel;
+                    if (_.startsWith(info.channel, 'm_')) {
+                        channelName = channelName.slice(2);
+                    }
+                    else if (_.startsWith(info.channel, 'e_')) {
+                        return stats;
+                    }
                     if (Number(info.subscribers) > 0) {
-                        stats[info.channel] = Number(info.subscribers);
+                        stats[channelName] = Number(info.subscribers);
                     }
                     return stats;
                 }, {});
