@@ -1,3 +1,4 @@
+"use strict";
 var redis = require('redis');
 var _ = require('lodash');
 var superagent = require('superagent');
@@ -9,14 +10,14 @@ var Store = (function () {
         var _this = this;
         if (isMaster === void 0) { isMaster = false; }
         this._treatMessage = function (pattern, channelName, message) {
-            var roomName = channelName.slice(2);
+            var roomName = channelName.slice(4);
             _this._debug('Got from Redis on room %s', roomName);
             var room = _this._rooms[roomName];
             if (!room) {
                 room = new Room(roomName, _this);
                 _this._rooms[roomName] = room;
             }
-            room._pushMessage(message);
+            room._pushMessage(message, channelName.slice(2));
         };
         this.joinRoom = function (roomName, client) {
             var room = _this._rooms[roomName];
@@ -78,29 +79,28 @@ var Room = (function () {
         this._clients = [];
         this.say = function (message) {
             _this._debug('Saying:', message);
-            _this._parent._pub(_this.name, message);
+            _this._parent._pub(_this._msgChannelName, message);
         };
         this._drain = function () {
-            if (_this._messageBuffer.length) {
+            _.chain(_this._messageBuffer).groupBy('channelName').map(function (messages, channelName) {
                 _this._debug('Draining %s messages', _this._messageBuffer.length);
-                var messageBufferLength = _this._messageBuffer.length;
                 superagent.post('http://' + _this._parent._conf.nginx.host + ':' + _this._parent._conf.nginx.port + '/pub')
                     .agent(_this._parent._agent)
-                    .query({ id: _this.name })
-                    .send(_this._messageBuffer)
+                    .query({ id: channelName })
+                    .send(_.map(messages, 'message'))
                     .end(function (err, data) {
                     if (err) {
                         logger.captureError(logger.error('Sending messages to Redis', { err: err }));
                     }
-                    _this._debug('Sent %s messages to nginx', messageBufferLength);
+                    _this._debug('Sent %s messages to nginx on channel %s', messages.length, channelName);
                 });
-                _this._messageBuffer = [];
-            }
+            }).value();
+            _this._messageBuffer = [];
         };
         this.onMsg = function (handler) {
             _this._handlers.push(handler);
         };
-        this._pushMessage = function (rawMessage) {
+        this._pushMessage = function (rawMessage, channelName) {
             var message;
             try {
                 message = JSON.parse(rawMessage);
@@ -113,14 +113,14 @@ var Room = (function () {
                 logger.captureError(logger.error('Incorrect message in Redis', { message: message }));
                 return _this._debug('Incorrect message in Redis', message);
             }
-            _this._messageBuffer.push(message);
+            _this._messageBuffer.push({ channelName: channelName, message: message });
             _this._debug('Received and added to buffer: %s', message.msg);
         };
         this.join = function (client) {
             _this._debug('Join');
             _this._joined++;
             _this._clients.push(client);
-            _this._parent._pub(_this.name, {
+            _this._parent._pub(_this._eventChannelName, {
                 user: client._user._public,
                 ev: 'join'
             });
@@ -129,7 +129,7 @@ var Room = (function () {
             _this._debug('Quit');
             _this._joined--;
             _.remove(_this._clients, client);
-            _this._parent._pub(_this.name, {
+            _this._parent._pub(_this._eventChannelName, {
                 user: client._user._public,
                 ev: 'leave'
             });
@@ -155,6 +155,8 @@ var Room = (function () {
         this._debug('Created room');
         this._parent = parent;
         this.name = name;
+        this._eventChannelName = 'e_' + this.name;
+        this._msgChannelName = 'm_' + this.name;
         this._joined = 0;
         if (parent._isMaster) {
             setInterval(this._drain, this._parent._conf.msgBufferDelay);

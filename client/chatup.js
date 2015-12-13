@@ -1,3 +1,4 @@
+"use strict";
 var request = require('superagent');
 var io = require('socket.io-client');
 var _ = require('lodash');
@@ -116,8 +117,8 @@ var ChatUpProtocol = (function () {
                 messages = JSON.parse(data.substring(indexes[1] + 1));
             }
             catch (e) { }
-            for (var _i = 0; _i < messages.length; _i++) {
-                var message = messages[_i];
+            for (var _i = 0, messages_1 = messages; _i < messages_1.length; _i++) {
+                var message = messages_1[_i];
                 message.channel = channel;
                 message.date = _this._lastReceivedMessageTime;
                 if (message.msg) {
@@ -168,7 +169,8 @@ var ChatUpProtocol = (function () {
                     messagesControlByArgument: true
                 });
                 _this._pushStream.onmessage = _this._handleMessagesBuffer;
-                _this._pushStream.addChannel(_this._conf.room);
+                _this._pushStream.addChannel('m_' + _this._conf.room);
+                _this._pushStream.addChannel('e_' + _this._conf.room);
                 if (_this._conf.additionalChannels) {
                     for (var i = 0; i < _this._conf.additionalChannels.length; i++) {
                         _this._pushStream.addChannel(_this._conf.additionalChannels[i]);

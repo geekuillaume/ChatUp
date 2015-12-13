@@ -236,7 +236,8 @@ export class ChatUpProtocol {
         messagesControlByArgument: true
       });
       this._pushStream.onmessage = this._handleMessagesBuffer;
-      this._pushStream.addChannel(this._conf.room);
+      this._pushStream.addChannel('m_' + this._conf.room);
+      this._pushStream.addChannel('e_' + this._conf.room);
       if (this._conf.additionalChannels) {
         for (let i = 0; i < this._conf.additionalChannels.length; i++) {
           this._pushStream.addChannel(this._conf.additionalChannels[i]);

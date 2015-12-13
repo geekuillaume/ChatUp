@@ -41,14 +41,14 @@ export class Store {
   }
 
   _treatMessage = (pattern, channelName, message) => {
-    var roomName = channelName.slice(2);
+    var roomName = channelName.slice(4); // For the r_ and the (m_ || e_)
     this._debug('Got from Redis on room %s', roomName);
     var room = this._rooms[roomName];
     if (!room) {
       room = new Room(roomName, this);
       this._rooms[roomName] = room;
     }
-    room._pushMessage(message);
+    room._pushMessage(message, channelName.slice(2));
   }
 
   joinRoom = (roomName: string, client: ChatUpClient): Room => {
@@ -91,9 +91,11 @@ export class Store {
 
 export class Room {
   name: string;
+  _eventChannelName: string;
+  _msgChannelName: string;
   _parent: Store;
   _joined: number;
-  _messageBuffer: ChatMessage[] = [];
+  _messageBuffer: {channelName: String, message: ChatMessage}[] = [];
   _debug: Function;
   _handlers: Function[] = [];
   _clients: ChatUpClient[] = [];
@@ -103,6 +105,8 @@ export class Room {
     this._debug('Created room');
     this._parent = parent;
     this.name = name;
+    this._eventChannelName = 'e_' + this.name;
+    this._msgChannelName = 'm_' + this.name;
     this._joined = 0;
     if (parent._isMaster) {
       setInterval(this._drain, this._parent._conf.msgBufferDelay);
@@ -111,36 +115,31 @@ export class Room {
 
   say = (message: ChatMessage) => {
     this._debug('Saying:', message);
-    this._parent._pub(this.name, message);
+    this._parent._pub(this._msgChannelName, message);
   }
 
   _drain = () => {
-    if (this._messageBuffer.length) {
+    _.chain(this._messageBuffer).groupBy('channelName').map((messages, channelName) => {
       this._debug('Draining %s messages', this._messageBuffer.length);
-      // _.each(this._handlers, (handler) => {
-      //   handler(this._messageBuffer);
-      // });
-      // this.emit('msg', this._messageBuffer);
-      var messageBufferLength = this._messageBuffer.length;
       superagent.post('http://'+ this._parent._conf.nginx.host +':'+ this._parent._conf.nginx.port +'/pub')
-        .agent(this._parent._agent)
-        .query({id: this.name})
-        .send(this._messageBuffer)
-        .end((err, data) => {
-          if (err) {
-            logger.captureError(logger.error('Sending messages to Redis', {err}))
-          }
-          this._debug('Sent %s messages to nginx', messageBufferLength);
-        });
-      this._messageBuffer = [];
-    }
+      .agent(this._parent._agent)
+      .query({id: channelName})
+      .send(_.map(messages, 'message'))
+      .end((err, data) => {
+        if (err) {
+          logger.captureError(logger.error('Sending messages to Redis', {err}))
+        }
+        this._debug('Sent %s messages to nginx on channel %s', messages.length, channelName);
+      });
+    }).value();
+    this._messageBuffer = [];
   }
 
   onMsg = (handler: Function) => {
     this._handlers.push(handler);
   }
 
-  _pushMessage = (rawMessage: string) => {
+  _pushMessage = (rawMessage: string, channelName: string) => {
     var message: ChatMessage;
     try {
       message = JSON.parse(rawMessage);
@@ -152,7 +151,7 @@ export class Room {
       logger.captureError(logger.error('Incorrect message in Redis', {message}))
       return this._debug('Incorrect message in Redis', message);
     }
-    this._messageBuffer.push(message);
+    this._messageBuffer.push({channelName, message});
     this._debug('Received and added to buffer: %s', message.msg);
   }
 
@@ -160,7 +159,7 @@ export class Room {
     this._debug('Join');
     this._joined++;
     this._clients.push(client);
-    this._parent._pub(this.name, {
+    this._parent._pub(this._eventChannelName, {
       user: client._user._public,
       ev: 'join'
     });
@@ -169,7 +168,7 @@ export class Room {
     this._debug('Quit');
     this._joined--;
     _.remove(this._clients, <any>client);
-    this._parent._pub(this.name, {
+    this._parent._pub(this._eventChannelName, {
       user: client._user._public,
       ev: 'leave'
     });
