@@ -2,31 +2,32 @@
 
 [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/geekuillaume/ChatUp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
-ChatUp is a highly performant and scalable webchat plateform.
+ChatUp is a highly performant, scalable and extensible chat platform based on websockets.
 
 It uses [NodeJS](https://nodejs.org/), [Redis](http://redis.io/) and [Nginx](http://nginx.org/) with the [PushStream Module](https://github.com/wandenberg/nginx-push-stream-module).
 
 ChatUp is:
 
-- used to host public webchat rooms and allow a large number of users to interact in these rooms
-- scalable to multiple servers and, by default, scaled to the number of cores available on the server
-- secured with JSON Web Token Authentication to integrate in an existing system
-- fully customizable client-side by using the corresponding lib
-- fault-tolerant
-- separated in multiple micro-services
-- used at large scale and created by [Streamup](https://streamup.com/)
+- **SCALABLE** on multiple servers
+- **SECURE** with JSON Web Token Authentication to integrate in an existing system
+- **EXTENSIBLE** via server-side and client-side plugins
+- **FAULT-TOLERANT**
+- **MODULARIZED** in multiple micro-services
+- **USED AT LARGE SCALE** and created for [Streamup](https://streamup.com/)
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
 - [Test it with Docker](#test-it-with-docker)
+- [Plugins](#plugins)
 - [How to Install](#how-to-install)
 - [How to use](#how-to-use)
   - [Dispatcher](#dispatcher)
   - [Chat Worker](#chat-worker)
   - [Redis](#redis)
   - [Client lib](#client-lib)
+- [How does it works](#how-does-it-works)
 - [FAQ](#faq)
   - [How to use SSL](#how-to-use-ssl)
   - [How to transmit user information](#how-to-transmit-user-information)
@@ -45,19 +46,21 @@ ChatUp is available on Docker. You can use this image to test it quickly or to d
 
 To do so, execute those three commands:
 
-```
-docker run --name chatup-redis -d redis
-docker run --link chatup-redis:redis -e CHATUP_REDISHOST=redis --name chatup-dispatcher -d geekuillaume/chatup ./entrypoint.js dispatcher
-docker run --link chatup-redis:redis -e CHATUP_REDISHOST=redis --name chatup-worker -d geekuillaume/chatup ./entrypoint.js worker --use-container-ip
+```sh
+docker run --name chatup-redis -d redis # Create a redis server
+docker run --link chatup-redis:redis -e CHATUP_REDISHOST=redis --name chatup-dispatcher -d geekuillaume/chatup ./entrypoint.js dispatcher # Start the dispatcher service in charge of the load-balacing
+docker run --link chatup-redis:redis -e CHATUP_REDISHOST=redis --name chatup-worker -d geekuillaume/chatup ./entrypoint.js worker --use-container-ip # Start the worker service in charge of all the communication
 ```
 
 You can then get the dispatcher IP with `docker inspect --format '{{ .NetworkSettings.IPAddress }}' chatup-dispatcher` and use the example [client page](http://rawgit.com/geekuillaume/ChatUp/master/examples/client/index.html) indicating this IP to test it.
 
-You can spawn multiple workers and load-balance without having to configure anything else. If you want to add multiple dispatchers, you need to put a load-balancer in front of them.
+You can spawn multiple workers they will be load-balanced without having to do anything else. If you want to add multiple dispatchers, you need to put a load-balancer in front of them.
 
-For the JWT, you can use the awesome [jwt.io](http://jwt.io/) website with the `RS256` algorithm and the [public](examples/JWTKeyExample.pub) and [private](examples/JWTPrivateExample.key) example keys.
+### IMPORTANT
 
-Here is a basic JWT and it's decrypted payload:
+By default, the chat uses example key for the JWT verfication. To test it use the awesome [jwt.io](http://jwt.io/) website with the `RS256` algorithm and the [public](examples/JWTKeyExample.pub) and [private](examples/JWTPrivateExample.key) example keys. In production, create a new Docker image from `geekuillaue/chatup` and include your key.
+
+Here is a basic JWT and it's payload:
 
 ```
 eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoiVGVzdCAxIiwiX3B1YmxpYyI6eyJuYW1lIjoiVGVzdCAxIn19.1uNu_T7xKtozXgqwoY31ouDo13H-RJ_q-yfqWau2Im-3PXxEcnn_hFuSJii_XJQKpVz1bVJG4vV9o67Wi0vI1B9A2WGHA2Wud9zWHj0UiL-jWhPd_EypMlVhr6AVe6YeP_IeguUAqD6u9tjOQhPrmIQ9zw327Pm9CHpGD_JZAgeHmVNaz67f-4nrRNZkGWrVrPXe2TKaiSz9gAIfMdae0ySY14QMStWHR-80YLwq2lpRmAWamxf6BCZ8f6HMv6k-0QcFb-n8j0wtOrKVxICQvSBhdyHQCTrGqKuRsLBd3eLBAMPlhmWKDyNYsCnvA9A73bYNPMN3w_FOy3jzv6LpBA
@@ -72,10 +75,16 @@ eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoiVGVzdCAxIiwiX3B1YmxpYyI6eyJuYW1
 }
 ```
 
+## Plugins
+
+- [Blacklist](https://github.com/geekuillaume/chatup-blacklist): blocks messages containing specific strings, administrable via an API on the dispatchers
+- [Slack](https://github.com/geekuillaume/chatup-slack): sends a message to a Slack channel when a message containing a specific string is sent
+- [Rate Limiter](https://github.com/geekuillaume/chatup-ratelimiter): limits the number of messages a user can send to avoid spamming
+
 ## How to Install
 
 On Ubuntu (tested on 14.04):
-```bash
+```sh
 curl 'https://rawgit.com/geekuillaume/ChatUp/master/examples/install.sh' | bash
 ```
 
@@ -131,6 +140,20 @@ The client lib is packaged with all its dependancies thanks to Browserify and ex
 You can also see the [example page](examples/client/index.html) to test your installation.
 
 You can modify use the ChatUp class as a starting point for your implementation.
+
+## How does it works
+
+When the client FOO want to join the channel BAR:
+
+- the client sends a request to the dispatchers asking to join channel BAR
+- the dispatchers replies with the hostname of an available worker
+- the client initiates the SUBSCRIBER websocket with the worker and receives the last X messages
+
+If the client is connected and want to send message:
+
+- the client initiates the PUBLISHER websocket with the worker and sends its JWT
+- the worker verifies it and if correct accept the connection
+- the client can send a message to the PUBLISHER websocket and they will be broadcasted to every worker and every clients in the specific channel
 
 ## FAQ
 
@@ -215,6 +238,6 @@ See the [LICENSE](LICENSE) file for more information.
 
 ## History
 
-ChatUp has been developed for Streamup by me, Guillaume Besson. After some talks, we decided to publish it freely for other to use.
+ChatUp has been developed for Streamup by myself, Guillaume Besson. After some talks, we decided to publish it freely for other to use.
 
-It's now used on [Streamup](https://streamup.com) under high load.
+It's currently used on [Streamup](https://streamup.com) under high load and going strong.
