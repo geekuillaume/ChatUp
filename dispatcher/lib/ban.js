@@ -1,3 +1,4 @@
+"use strict";
 var _ = require('lodash');
 var jwt = require('jsonwebtoken');
 var logger = require('../../common/logger');
@@ -26,7 +27,7 @@ function banHandler(parent) {
             for (var i = 0; i < decoded.length; i++) {
                 var toBan = {};
                 if (!_.isString(decoded[i].name) || !_.isString(decoded[i].channel)) {
-                    wrongJWTContent();
+                    return wrongJWTContent();
                 }
                 toBan.name = decoded[i].name;
                 toBan.channel = decoded[i].channel;
@@ -45,7 +46,7 @@ function banHandler(parent) {
                 else {
                     redisMulti.persist(keyName);
                 }
-                redisMulti.publish('r_' + toBans[i].channel, JSON.stringify({
+                redisMulti.publish('r_m_' + toBans[i].channel, JSON.stringify({
                     ev: "rmUserMsg",
                     data: toBans[i].name
                 }));

@@ -34,7 +34,7 @@ export function banHandler(parent: Dispatcher) {
         for (let i = 0; i < decoded.length; i++) {
             var toBan:any = {};
             if (!_.isString(decoded[i].name) || !_.isString(decoded[i].channel)) {
-              wrongJWTContent();
+              return wrongJWTContent();
             }
             toBan.name = decoded[i].name;
             toBan.channel = decoded[i].channel;
@@ -53,7 +53,7 @@ export function banHandler(parent: Dispatcher) {
           } else {
             redisMulti.persist(keyName);
           }
-          redisMulti.publish('r_' + toBans[i].channel, JSON.stringify({
+          redisMulti.publish('r_m_' + toBans[i].channel, JSON.stringify({
             ev: "rmUserMsg",
             data: toBans[i].name
           }));
