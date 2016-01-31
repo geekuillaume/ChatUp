@@ -1,3 +1,4 @@
+"use strict";
 var _ = require('lodash');
 var logger = require('../../common/logger');
 var jwt = require('jsonwebtoken');
@@ -29,13 +30,13 @@ function postMessageHandler(parent) {
                 if (_.isString(decoded[i].msg)) {
                     toSend.msg = decoded[i].msg;
                 }
-                else if (_.isString(decoded[i].ev)) {
+                if (_.isString(decoded[i].ev)) {
                     toSend.ev = decoded[i].ev;
                     if (!_.isUndefined(decoded[i].data)) {
                         toSend.data = decoded[i].data;
                     }
                 }
-                else {
+                if (!_.isString(decoded[i].msg) && !_.isString(decoded[i].ev)) {
                     return wrongJWTContent();
                 }
                 toSend.user = decoded[i].user;
@@ -43,7 +44,7 @@ function postMessageHandler(parent) {
             }
             var redisMulti = parent._redisConnection.multi();
             for (var i = 0; i < toSends.length; i++) {
-                redisMulti.publish('r_' + toSends[i].channel, JSON.stringify(toSends[i]));
+                redisMulti.publish('r_m_' + toSends[i].channel, JSON.stringify(toSends[i]));
             }
             redisMulti.exec(function (err) {
                 if (err) {

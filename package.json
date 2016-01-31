@@ -1,6 +1,6 @@
 {
   "name": "chatup",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Extensible, Scalable, Fault-Tolerant Chat platform in NodeJS",
   "main": "index.js",
   "scripts": {

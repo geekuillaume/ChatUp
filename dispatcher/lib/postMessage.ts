@@ -38,12 +38,14 @@ export function postMessageHandler(parent: Dispatcher) {
 
           if (_.isString(decoded[i].msg)) { // If this is a message
             toSend.msg = decoded[i].msg;
-          } else if (_.isString(decoded[i].ev)) { // If this is an event
+          }
+          if (_.isString(decoded[i].ev)) { // If this is an event
             toSend.ev = decoded[i].ev;
             if (!_.isUndefined(decoded[i].data)) { // Include the data related to the event
               toSend.data = decoded[i].data;
             }
-          } else { // This is a wrong message, return an error
+          }
+          if (!_.isString(decoded[i].msg) && !_.isString(decoded[i].ev)) { // This is a wrong message, return an error
             return wrongJWTContent();
           }
           toSend.user = decoded[i].user;
@@ -52,7 +54,7 @@ export function postMessageHandler(parent: Dispatcher) {
         var redisMulti = parent._redisConnection.multi();
 
         for (let i = 0; i < toSends.length; i++) {
-          redisMulti.publish('r_' + toSends[i].channel, JSON.stringify(toSends[i]));
+          redisMulti.publish('r_m_' + toSends[i].channel, JSON.stringify(toSends[i]));
         }
 
         redisMulti.exec((err) => {
