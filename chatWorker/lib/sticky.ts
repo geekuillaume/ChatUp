@@ -87,7 +87,7 @@ export var stickyClient = function(server) {
   if (!server) throw new Error('Worker hasn\'t created server!');
 
   process.on('message', function(msg, socket) {
-    if (msg !== 'sticky-session:connection') return;
+    if (msg !== 'sticky-session:connection' || !socket) return;
     slaveDebug('Got new connection from master %s', socket)
     server.emit('connection', socket);
   });

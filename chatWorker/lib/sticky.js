@@ -1,3 +1,4 @@
+"use strict";
 var net = require('net');
 var cluster = require('cluster');
 var _ = require('lodash');
@@ -63,7 +64,7 @@ exports.stickyClient = function (server) {
     if (!server)
         throw new Error('Worker hasn\'t created server!');
     process.on('message', function (msg, socket) {
-        if (msg !== 'sticky-session:connection')
+        if (msg !== 'sticky-session:connection' || !socket)
             return;
         slaveDebug('Got new connection from master %s', socket);
         server.emit('connection', socket);
