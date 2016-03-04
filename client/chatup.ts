@@ -146,6 +146,23 @@ export class ChatUpProtocol {
     this._userCountUpdateHandlers.push(handler)
   }
 
+  getUsers = (options) => {
+    return new Promise((resolve, reject) => {
+      request.get(this._conf.dispatcherURL + '/stats/' + this._conf.room)
+      .query(options)
+      .end((err, res) => {
+        if (err) {
+          return reject(err);
+        }
+        resolve({
+          clients: res.body.clients,
+          pubCount: res.body.pubCount,
+          subCount: res.body.subCount
+        });
+      });
+    });
+  }
+
   _triggerUserCountUpdate = () => {
     for (let handler of this._userCountUpdateHandlers) {
       handler(this.stats);

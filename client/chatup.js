@@ -79,6 +79,22 @@ var ChatUpProtocol = (function () {
         this.onUserCountUpdate = function (handler) {
             _this._userCountUpdateHandlers.push(handler);
         };
+        this.getUsers = function (options) {
+            return new Promise(function (resolve, reject) {
+                request.get(_this._conf.dispatcherURL + '/stats/' + _this._conf.room)
+                    .query(options)
+                    .end(function (err, res) {
+                    if (err) {
+                        return reject(err);
+                    }
+                    resolve({
+                        clients: res.body.clients,
+                        pubCount: res.body.pubCount,
+                        subCount: res.body.subCount
+                    });
+                });
+            });
+        };
         this._triggerUserCountUpdate = function () {
             for (var _i = 0, _a = _this._userCountUpdateHandlers; _i < _a.length; _i++) {
                 var handler = _a[_i];
@@ -314,5 +330,5 @@ var ChatUpProtocol = (function () {
         additionalChannels: []
     };
     return ChatUpProtocol;
-})();
+}());
 exports.ChatUpProtocol = ChatUpProtocol;
