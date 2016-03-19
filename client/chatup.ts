@@ -55,6 +55,9 @@ export class ChatUpProtocol {
 
   _userCountRefreshTimeout;
   _initPromise: Promise<any>;
+  _connectPubPromise: Promise<any>;
+  _resolvePubPromise;
+  _rejectPubPromise;
 
   stats: ChatUpStats = {
     msgSent: 0,
@@ -72,6 +75,10 @@ export class ChatUpProtocol {
     _.defaults(conf, ChatUpProtocol.defaultConf);
     _.defaults(conf.socketIO, ChatUpProtocol.defaultConf.socketIO);
     this._evHandlers.push(this._evUserCountHandler);
+    this._connectPubPromise = new Promise((resolve, reject) => {
+      this._resolvePubPromise = resolve;
+      this._rejectPubPromise = reject;
+    })
   }
 
   get status():string {
@@ -119,18 +126,33 @@ export class ChatUpProtocol {
     });
   }
 
+  unauthenticate = () => {
+    if (this._pubSocket) {
+      this._pubConnected = false;
+      this._pubSocket.disconnect();
+      this._pubSocket.destroy();
+      this._pubSocket = null;
+      this._connectPubPromise = new Promise((resolve, reject) => {
+        this._resolvePubPromise = resolve;
+        this._rejectPubPromise = reject;
+      });
+    }
+  }
+
   say = (message):Promise<any> => {
     return this._waitInit(() => {
-      return new Promise<any>((resolve, reject) => {
-        this.stats.msgSent++;
-        var start = now();
-        this._pubSocket.emit('say', {msg: message}, (response) => {
-          this.stats.latency = now() - start;
-          if (!this._isCorrectReponse(response, reject))
+      return this._connectPubPromise.then(() => {
+        return new Promise<any>((resolve, reject) => {
+          this.stats.msgSent++;
+          var start = now();
+          this._pubSocket.emit('say', {msg: message}, (response) => {
+            this.stats.latency = now() - start;
+            if (!this._isCorrectReponse(response, reject))
             return;
-          return resolve();
+            return resolve();
+          });
         });
-      })
+      });
     });
   }
 
@@ -334,6 +356,10 @@ export class ChatUpProtocol {
         this._errorCount++;
         this.init();
       })
+    }).then(() => {
+      this._resolvePubPromise();
+    }).catch((e) => {
+      this._rejectPubPromise(e);
     });
   }
 

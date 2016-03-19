@@ -57,16 +57,30 @@ var ChatUpProtocol = (function () {
                 return _this._connectPub();
             });
         };
+        this.unauthenticate = function () {
+            if (_this._pubSocket) {
+                _this._pubConnected = false;
+                _this._pubSocket.disconnect();
+                _this._pubSocket.destroy();
+                _this._pubSocket = null;
+                _this._connectPubPromise = new Promise(function (resolve, reject) {
+                    _this._resolvePubPromise = resolve;
+                    _this._rejectPubPromise = reject;
+                });
+            }
+        };
         this.say = function (message) {
             return _this._waitInit(function () {
-                return new Promise(function (resolve, reject) {
-                    _this.stats.msgSent++;
-                    var start = now();
-                    _this._pubSocket.emit('say', { msg: message }, function (response) {
-                        _this.stats.latency = now() - start;
-                        if (!_this._isCorrectReponse(response, reject))
-                            return;
-                        return resolve();
+                return _this._connectPubPromise.then(function () {
+                    return new Promise(function (resolve, reject) {
+                        _this.stats.msgSent++;
+                        var start = now();
+                        _this._pubSocket.emit('say', { msg: message }, function (response) {
+                            _this.stats.latency = now() - start;
+                            if (!_this._isCorrectReponse(response, reject))
+                                return;
+                            return resolve();
+                        });
                     });
                 });
             });
@@ -267,6 +281,10 @@ var ChatUpProtocol = (function () {
                     _this._errorCount++;
                     _this.init();
                 });
+            }).then(function () {
+                _this._resolvePubPromise();
+            }).catch(function (e) {
+                _this._rejectPubPromise(e);
             });
         };
         this._getChatWorker = function () {
@@ -304,6 +322,10 @@ var ChatUpProtocol = (function () {
         _.defaults(conf, ChatUpProtocol.defaultConf);
         _.defaults(conf.socketIO, ChatUpProtocol.defaultConf.socketIO);
         this._evHandlers.push(this._evUserCountHandler);
+        this._connectPubPromise = new Promise(function (resolve, reject) {
+            _this._resolvePubPromise = resolve;
+            _this._rejectPubPromise = reject;
+        });
     }
     Object.defineProperty(ChatUpProtocol.prototype, "status", {
         get: function () {
