@@ -24,8 +24,8 @@ export function statsHandler(parent: Dispatcher) {
 export function getChannelStats(parent: Dispatcher, channelName: string) {
   var workers = parent._workersManager.getWorkers();
   return {
-    subCount: _(workers).map(_.property('subStats.' + channelName)).sum(),
-    pubCount: _(workers).map(_.property('pubStats.' + channelName)).map('length').sum()
+    subCount: _(workers).map(_.property('subStats.' + channelName)).sum() || 0,
+    pubCount: _(workers).map(_.property('pubStats.' + channelName)).map('length').sum() || 0
   };
 }
 

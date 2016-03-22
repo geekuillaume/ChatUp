@@ -1,3 +1,4 @@
+"use strict";
 var _ = require('lodash');
 function statsHandler(parent) {
     var handler = function (req, res) {
@@ -16,8 +17,8 @@ exports.statsHandler = statsHandler;
 function getChannelStats(parent, channelName) {
     var workers = parent._workersManager.getWorkers();
     return {
-        subCount: _(workers).map(_.property('subStats.' + channelName)).sum(),
-        pubCount: _(workers).map(_.property('pubStats.' + channelName)).map('length').sum()
+        subCount: _(workers).map(_.property('subStats.' + channelName)).sum() || 0,
+        pubCount: _(workers).map(_.property('pubStats.' + channelName)).map('length').sum() || 0
     };
 }
 exports.getChannelStats = getChannelStats;
