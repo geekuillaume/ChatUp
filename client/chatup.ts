@@ -396,15 +396,17 @@ export class ChatUpProtocol {
         // We are not connected so we need to add ourself to the count
         this.stats.subCount = res.body.channel.subCount + 1;
         this._triggerUserCountUpdate();
-        this._cachedMessages = _.reverse(res.body.messages, 'd');
-        _.each(this._cachedMessages, (message) => {
-          message.date = new Date(message.d);
-          message.channel = this._conf.room;
-          this.stats.msgReceived++;
-          for(let handler of this._msgHandlers) {
-            handler(message);
-          }
-        });
+        if (!this._cachedMessages || !this._cachedMessages.length) {
+          this._cachedMessages = _.reverse(res.body.messages, 'd');
+          _.each(this._cachedMessages, (message) => {
+            message.date = new Date(message.d);
+            message.channel = this._conf.room;
+            this.stats.msgReceived++;
+            for(let handler of this._msgHandlers) {
+              handler(message);
+            }
+          });
+        }
         resolve(res.body);
       });
     });
