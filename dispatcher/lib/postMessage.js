@@ -2,6 +2,7 @@
 var _ = require('lodash');
 var logger = require('../../common/logger');
 var jwt = require('jsonwebtoken');
+var uuid = require('node-uuid');
 function postMessageHandler(parent) {
     var handler = function (req, res) {
         if (!_.isString(req.body)) {
@@ -40,6 +41,8 @@ function postMessageHandler(parent) {
                     return wrongJWTContent();
                 }
                 toSend.user = decoded[i].user;
+                toSend.d = Math.floor(Date.now() / 1000);
+                toSend.i = uuid.v4();
                 toSends.push(toSend);
             }
             var redisMulti = parent._redisConnection.multi();

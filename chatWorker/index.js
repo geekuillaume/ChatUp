@@ -80,7 +80,7 @@ var ChatWorker = (function () {
         expireDelay: 2000,
         messageHistory: {
             size: 100,
-            expire: 24 * 60
+            expire: 30 * 24 * 60 * 60
         },
         nginx: {
             host: '127.0.0.1',
@@ -92,5 +92,5 @@ var ChatWorker = (function () {
         middlewares: []
     };
     return ChatWorker;
-})();
+}());
 exports.ChatWorker = ChatWorker;

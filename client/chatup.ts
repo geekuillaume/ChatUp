@@ -56,6 +56,7 @@ export class ChatUpProtocol {
   _userCountRefreshTimeout;
   _initPromise: Promise<any>;
   _connectPubPromise: Promise<any>;
+  _cachedMessages = [];
   _resolvePubPromise;
   _rejectPubPromise;
 
@@ -225,6 +226,9 @@ export class ChatUpProtocol {
       messages = JSON.parse(data.substring(indexes[1] + 1));
     } catch (e) {}
     for (let message of messages) {
+      if (_.includes(_.map(this._cachedMessages, 'i'), message.i)) {
+        continue;
+      }
       message.channel = channel;
       message.date = this._lastReceivedMessageTime;
       if (message.msg) {
@@ -392,6 +396,15 @@ export class ChatUpProtocol {
         // We are not connected so we need to add ourself to the count
         this.stats.subCount = res.body.channel.subCount + 1;
         this._triggerUserCountUpdate();
+        this._cachedMessages = _.reverse(res.body.messages, 'd');
+        _.each(this._cachedMessages, (message) => {
+          message.date = new Date(message.d);
+          message.channel = this._conf.room;
+          this.stats.msgReceived++;
+          for(let handler of this._msgHandlers) {
+            handler(message);
+          }
+        });
         resolve(res.body);
       });
     });

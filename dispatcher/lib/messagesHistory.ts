@@ -20,7 +20,7 @@ export function messagesHistoryHandler(parent: Dispatcher) {
 
 export function getChannelMessages(parent: Dispatcher, channelName: string): Promise<any> {
   return new Promise(function(resolve, reject) {
-    parent._redisConnection.lrange('chatUp:room:r_' + channelName, 0, -1, function(err, messages) {
+    parent._redisConnection.lrange('chatUp:room:r_m_' + channelName, 0, -1, function(err, messages) {
       if (err) {
         return reject(err);
       }

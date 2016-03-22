@@ -1,6 +1,7 @@
 import express = require('express');
 import Dispatcher = require('../index');
 import {getChannelStats} from './stats';
+import { getChannelMessages } from './messagesHistory';
 import logger = require('../../common/logger');
 var debug = require('debug')('ChatUp:Dispatcher');
 
@@ -18,11 +19,14 @@ var dispatchHandler = function (parent: Dispatcher.Dispatcher) {
       var channelStats = getChannelStats(parent, req.params.channelName);
       if (worker) {
         debug('Sending worker %s at %s', worker.id, worker.host);
-        res.send({
-          host: worker.host,
-          id: worker.id,
-          channel: channelStats
-        });
+        getChannelMessages(parent, req.params.channelName).then((messages) => {
+          res.send({
+            host: worker.host,
+            id: worker.id,
+            channel: channelStats,
+            messages
+          });
+        })
       } else {
         logger.captureError(new Error('No worker available'));
         debug('No worker available')

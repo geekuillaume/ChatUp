@@ -58,6 +58,8 @@ export interface WSHandlerWorker extends cluster.Worker {
 export interface ChatMessage {
   msg: string;
   user: {};
+  i: string; // UUID of the message
+  d: number; // Timestamp in second of the message
 }
 
 export interface ChatUpMiddleware {(ctx: ChatUpMiddlewareContext, next: (err?: any)=>void): any}
@@ -82,7 +84,7 @@ export class ChatWorker {
     expireDelay: 2000,
     messageHistory: {
       size: 100,
-      expire: 24 * 60
+      expire: 30 * 24 * 60 * 60 // If a channel don't have any messages in 30 days, delete them from redis
     },
     nginx: {
       host: '127.0.0.1',

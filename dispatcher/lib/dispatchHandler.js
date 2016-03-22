@@ -1,4 +1,6 @@
+"use strict";
 var stats_1 = require('./stats');
+var messagesHistory_1 = require('./messagesHistory');
 var logger = require('../../common/logger');
 var debug = require('debug')('ChatUp:Dispatcher');
 var dispatchHandler = function (parent) {
@@ -12,10 +14,13 @@ var dispatchHandler = function (parent) {
             var channelStats = stats_1.getChannelStats(parent, req.params.channelName);
             if (worker) {
                 debug('Sending worker %s at %s', worker.id, worker.host);
-                res.send({
-                    host: worker.host,
-                    id: worker.id,
-                    channel: channelStats
+                messagesHistory_1.getChannelMessages(parent, req.params.channelName).then(function (messages) {
+                    res.send({
+                        host: worker.host,
+                        id: worker.id,
+                        channel: channelStats,
+                        messages: messages
+                    });
                 });
             }
             else {

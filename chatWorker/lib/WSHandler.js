@@ -3,6 +3,7 @@ var socketio = require('socket.io');
 var http = require('http');
 var https = require('https');
 var jwt = require('jsonwebtoken');
+var uuid = require('node-uuid');
 var redisAdaptater = require('socket.io-redis');
 var debugFactory = require('debug');
 var _ = require('lodash');
@@ -59,7 +60,7 @@ var WSHandler = (function () {
         configurable: true
     });
     return WSHandler;
-})();
+}());
 exports.WSHandler = WSHandler;
 var ChatUpClient = (function () {
     function ChatUpClient(socket, parent) {
@@ -132,7 +133,9 @@ var ChatUpClient = (function () {
                 }).then(function () {
                     _this._room.say({
                         user: _this._user._public,
-                        msg: msg.msg
+                        msg: msg.msg,
+                        i: uuid.v4(),
+                        d: Date.now() / 1000
                     });
                     _this._debug('Saying', msg.msg);
                     cb('ok');
@@ -163,5 +166,5 @@ var ChatUpClient = (function () {
         this._socket.on('disconnect', this._onDisconnect);
     }
     return ChatUpClient;
-})();
+}());
 exports.ChatUpClient = ChatUpClient;

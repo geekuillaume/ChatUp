@@ -2,6 +2,7 @@ import socketio = require('socket.io');
 import http = require('http');
 import https = require('https');
 import jwt = require('jsonwebtoken');
+var uuid = require('node-uuid');
 var redisAdaptater = require('socket.io-redis');
 var debugFactory = require('debug');
 import _ = require('lodash');
@@ -162,7 +163,9 @@ export class ChatUpClient {
       }).then(() => {
         this._room.say({
           user: this._user._public,
-          msg: msg.msg
+          msg: msg.msg,
+          i: uuid.v4(),
+          d: Date.now() / 1000
         });
         this._debug('Saying', msg.msg);
         cb('ok');

@@ -17,6 +17,7 @@ var ChatUpProtocol = (function () {
         this._pubConnected = false;
         this._lastReceivedMessageTime = new Date(0);
         this._errorCount = 0;
+        this._cachedMessages = [];
         this.stats = {
             msgSent: 0,
             msgReceived: 0,
@@ -149,6 +150,9 @@ var ChatUpProtocol = (function () {
             catch (e) { }
             for (var _i = 0, messages_1 = messages; _i < messages_1.length; _i++) {
                 var message = messages_1[_i];
+                if (_.includes(_.map(_this._cachedMessages, 'i'), message.i)) {
+                    continue;
+                }
                 message.channel = channel;
                 message.date = _this._lastReceivedMessageTime;
                 if (message.msg) {
@@ -313,6 +317,16 @@ var ChatUpProtocol = (function () {
                     _this.stats.pubCount = res.body.channel.pubCount;
                     _this.stats.subCount = res.body.channel.subCount + 1;
                     _this._triggerUserCountUpdate();
+                    _this._cachedMessages = _.reverse(res.body.messages, 'd');
+                    _.each(_this._cachedMessages, function (message) {
+                        message.date = new Date(message.d);
+                        message.channel = _this._conf.room;
+                        _this.stats.msgReceived++;
+                        for (var _i = 0, _a = _this._msgHandlers; _i < _a.length; _i++) {
+                            var handler = _a[_i];
+                            handler(message);
+                        }
+                    });
                     resolve(res.body);
                 });
             });
