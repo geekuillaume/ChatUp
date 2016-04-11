@@ -43,6 +43,10 @@ interface DispatcherConf {
   sentry?: {
     dsn: String,
     options?: Object
+  },
+  messageHistory?: {
+    size: number;
+    expire: number;
   }
 }
 
@@ -58,7 +62,11 @@ export class Dispatcher {
     },
     origins: '*',
     workerRefreshInterval: 2000,
-    threads: require('os').cpus().length
+    threads: require('os').cpus().length,
+    messageHistory: {
+      size: 100,
+      expire: 30 * 24 * 60 * 60 // If a channel don't have any messages in 30 days, delete them from redis
+    }
   };
 
   _app: express.Application;

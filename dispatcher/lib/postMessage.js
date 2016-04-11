@@ -48,6 +48,9 @@ function postMessageHandler(parent) {
             var redisMulti = parent._redisConnection.multi();
             for (var i = 0; i < toSends.length; i++) {
                 redisMulti.publish('r_m_' + toSends[i].channel, JSON.stringify(toSends[i]));
+                redisMulti.lpush('chatUp:room:r_' + toSends[i].channel, JSON.stringify(toSends[i]));
+                redisMulti.ltrim('chatUp:room:r_' + toSends[i].channel, 0, parent._conf.messageHistory.size - 1);
+                redisMulti.expire('chatUp:room:r_' + toSends[i].channel, parent._conf.messageHistory.expire);
             }
             redisMulti.exec(function (err) {
                 if (err) {

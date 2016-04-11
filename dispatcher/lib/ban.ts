@@ -53,10 +53,14 @@ export function banHandler(parent: Dispatcher) {
           } else {
             redisMulti.persist(keyName);
           }
-          redisMulti.publish('r_m_' + toBans[i].channel, JSON.stringify({
+          let banNotif = JSON.stringify({
             ev: "rmUserMsg",
             data: toBans[i].name
-          }));
+          });
+          redisMulti.publish('r_m_' + toBans[i].channel, banNotif);
+          redisMulti.lpush('chatUp:room:r_' + toBans[i].channel, banNotif)
+          redisMulti.ltrim('chatUp:room:r_' + toBans[i].channel, 0, parent._conf.messageHistory.size - 1)
+          redisMulti.expire('chatUp:room:r_' + toBans[i].channel, parent._conf.messageHistory.expire)
           debug("Banning %s of channel %s", toBans[i].name, toBans[i].channel);
         }
 

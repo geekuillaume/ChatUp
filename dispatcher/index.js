@@ -91,8 +91,12 @@ var Dispatcher = (function () {
         },
         origins: '*',
         workerRefreshInterval: 2000,
-        threads: require('os').cpus().length
+        threads: require('os').cpus().length,
+        messageHistory: {
+            size: 100,
+            expire: 30 * 24 * 60 * 60
+        }
     };
     return Dispatcher;
-})();
+}());
 exports.Dispatcher = Dispatcher;
