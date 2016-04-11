@@ -322,10 +322,18 @@ var ChatUpProtocol = (function () {
                         _.each(_this._cachedMessages, function (message) {
                             message.date = new Date(message.d);
                             message.channel = _this._conf.room;
-                            _this.stats.msgReceived++;
-                            for (var _i = 0, _a = _this._msgHandlers; _i < _a.length; _i++) {
-                                var handler = _a[_i];
-                                handler(message);
+                            if (message.msg) {
+                                _this.stats.msgReceived++;
+                                for (var _i = 0, _a = _this._msgHandlers; _i < _a.length; _i++) {
+                                    var handler = _a[_i];
+                                    handler(message);
+                                }
+                            }
+                            else if (message.ev) {
+                                for (var _b = 0, _c = _this._evHandlers; _b < _c.length; _b++) {
+                                    var handler = _c[_b];
+                                    handler(message);
+                                }
                             }
                         });
                     }

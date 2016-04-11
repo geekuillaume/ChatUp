@@ -58,9 +58,9 @@ export function banHandler(parent: Dispatcher) {
             data: toBans[i].name
           });
           redisMulti.publish('r_m_' + toBans[i].channel, banNotif);
-          redisMulti.lpush('chatUp:room:r_' + toBans[i].channel, banNotif)
-          redisMulti.ltrim('chatUp:room:r_' + toBans[i].channel, 0, parent._conf.messageHistory.size - 1)
-          redisMulti.expire('chatUp:room:r_' + toBans[i].channel, parent._conf.messageHistory.expire)
+          redisMulti.lpush('chatUp:room:r_m_' + toBans[i].channel, banNotif)
+          redisMulti.ltrim('chatUp:room:r_m_' + toBans[i].channel, 0, parent._conf.messageHistory.size - 1)
+          redisMulti.expire('chatUp:room:r_m_' + toBans[i].channel, parent._conf.messageHistory.expire)
           debug("Banning %s of channel %s", toBans[i].name, toBans[i].channel);
         }
 

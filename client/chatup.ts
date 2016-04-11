@@ -401,9 +401,15 @@ export class ChatUpProtocol {
           _.each(this._cachedMessages, (message) => {
             message.date = new Date(message.d);
             message.channel = this._conf.room;
-            this.stats.msgReceived++;
-            for(let handler of this._msgHandlers) {
-              handler(message);
+            if (message.msg) {
+              this.stats.msgReceived++;
+              for(let handler of this._msgHandlers) {
+                handler(message);
+              }
+            } else if (message.ev) {
+              for(let handler of this._evHandlers) {
+                handler(message);
+              }
             }
           });
         }
