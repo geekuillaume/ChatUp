@@ -231,13 +231,13 @@ export class ChatUpProtocol {
       }
       message.channel = channel;
       message.date = this._lastReceivedMessageTime;
-      if (message.msg) {
-        this.stats.msgReceived++;
-        for(let handler of this._msgHandlers) {
+      if (message.ev) {
+        for(let handler of this._evHandlers) {
           handler(message);
         }
-      } else if (message.ev) {
-        for(let handler of this._evHandlers) {
+      } else if (message.msg) {
+        this.stats.msgReceived++;
+        for(let handler of this._msgHandlers) {
           handler(message);
         }
       }
@@ -401,13 +401,13 @@ export class ChatUpProtocol {
           _.each(this._cachedMessages, (message) => {
             message.date = new Date(message.d);
             message.channel = this._conf.room;
-            if (message.msg) {
-              this.stats.msgReceived++;
-              for(let handler of this._msgHandlers) {
+            if (message.ev) {
+              for(let handler of this._evHandlers) {
                 handler(message);
               }
-            } else if (message.ev) {
-              for(let handler of this._evHandlers) {
+            } else if (message.msg) {
+              this.stats.msgReceived++;
+              for(let handler of this._msgHandlers) {
                 handler(message);
               }
             }

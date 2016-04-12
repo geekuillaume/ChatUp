@@ -156,15 +156,15 @@ var ChatUpProtocol = (function () {
                 }
                 message.channel = channel;
                 message.date = _this._lastReceivedMessageTime;
-                if (message.msg) {
-                    _this.stats.msgReceived++;
-                    for (var _a = 0, _b = _this._msgHandlers; _a < _b.length; _a++) {
+                if (message.ev) {
+                    for (var _a = 0, _b = _this._evHandlers; _a < _b.length; _a++) {
                         var handler = _b[_a];
                         handler(message);
                     }
                 }
-                else if (message.ev) {
-                    for (var _c = 0, _d = _this._evHandlers; _c < _d.length; _c++) {
+                else if (message.msg) {
+                    _this.stats.msgReceived++;
+                    for (var _c = 0, _d = _this._msgHandlers; _c < _d.length; _c++) {
                         var handler = _d[_c];
                         handler(message);
                     }
@@ -323,15 +323,15 @@ var ChatUpProtocol = (function () {
                         _.each(_this._cachedMessages, function (message) {
                             message.date = new Date(message.d);
                             message.channel = _this._conf.room;
-                            if (message.msg) {
-                                _this.stats.msgReceived++;
-                                for (var _i = 0, _a = _this._msgHandlers; _i < _a.length; _i++) {
+                            if (message.ev) {
+                                for (var _i = 0, _a = _this._evHandlers; _i < _a.length; _i++) {
                                     var handler = _a[_i];
                                     handler(message);
                                 }
                             }
-                            else if (message.ev) {
-                                for (var _b = 0, _c = _this._evHandlers; _b < _c.length; _b++) {
+                            else if (message.msg) {
+                                _this.stats.msgReceived++;
+                                for (var _b = 0, _c = _this._msgHandlers; _b < _c.length; _b++) {
                                     var handler = _c[_b];
                                     handler(message);
                                 }
