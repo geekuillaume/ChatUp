@@ -39,7 +39,7 @@ Authors: Wandenberg Peixoto <wandenberg@gmail.com>, Rogério Carvalho Schneider 
     var window = {
       location: {},
       escape: function(text) {return text},
-      WebSocket: require('ws'),
+      // WebSocket: require('ws'),
       setTimeout: setTimeout
     };
   }

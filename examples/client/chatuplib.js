@@ -380,7 +380,7 @@ var ChatUpProtocol = (function () {
 }());
 exports.ChatUpProtocol = ChatUpProtocol;
 
-},{"./lib/helpers":2,"./lib/nginx-pushstream.js":3,"es6-shim":27,"lodash":32,"performance-now":37,"socket.io-client":39,"superagent":49,"url":64}],2:[function(require,module,exports){
+},{"./lib/helpers":2,"./lib/nginx-pushstream.js":3,"es6-shim":27,"lodash":32,"performance-now":37,"socket.io-client":39,"superagent":49,"url":63}],2:[function(require,module,exports){
 function findClass(element, className) {
     var foundElement = null, found;
     function recurse(element, className, found) {
@@ -464,7 +464,7 @@ Authors: Wandenberg Peixoto <wandenberg@gmail.com>, Rogério Carvalho Schneider 
     var window = {
       location: {},
       escape: function(text) {return text},
-      WebSocket: require('ws'),
+      // WebSocket: require('ws'),
       setTimeout: setTimeout
     };
   }
@@ -1699,7 +1699,7 @@ Authors: Wandenberg Peixoto <wandenberg@gmail.com>, Rogério Carvalho Schneider 
   }
 })();
 
-},{"url":64,"ws":56}],4:[function(require,module,exports){
+},{"url":63}],4:[function(require,module,exports){
 module.exports = after
 
 function after(count, callback, err_cb) {
@@ -4445,7 +4445,7 @@ Polling.prototype.uri = function(){
   return schema + '://' + (ipv6 ? '[' + this.hostname + ']' : this.hostname) + port + this.path + query;
 };
 
-},{"../transport":17,"component-inherit":11,"debug":12,"engine.io-parser":24,"parseqs":35,"xmlhttprequest-ssl":23,"yeast":57}],22:[function(require,module,exports){
+},{"../transport":17,"component-inherit":11,"debug":12,"engine.io-parser":24,"parseqs":35,"xmlhttprequest-ssl":23,"yeast":56}],22:[function(require,module,exports){
 (function (global){
 /**
  * Module dependencies.
@@ -4737,7 +4737,7 @@ WS.prototype.check = function(){
 };
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"../transport":17,"component-inherit":11,"debug":12,"engine.io-parser":24,"parseqs":35,"ws":58,"yeast":57}],23:[function(require,module,exports){
+},{"../transport":17,"component-inherit":11,"debug":12,"engine.io-parser":24,"parseqs":35,"ws":57,"yeast":56}],23:[function(require,module,exports){
 // browser shim for xmlhttprequest module
 var hasCORS = require('has-cors');
 
@@ -9198,7 +9198,7 @@ function hasBinary(data) {
 }));
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"_process":59}],28:[function(require,module,exports){
+},{"_process":58}],28:[function(require,module,exports){
 (function (global){
 
 /*
@@ -24651,7 +24651,7 @@ module.exports = function parseuri(str) {
 }).call(this);
 
 }).call(this,require('_process'))
-},{"_process":59}],38:[function(require,module,exports){
+},{"_process":58}],38:[function(require,module,exports){
 
 /**
  * Reduce `arr` with `fn`.
@@ -29044,51 +29044,6 @@ function toArray(list, index) {
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 },{}],56:[function(require,module,exports){
-
-/**
- * Module dependencies.
- */
-
-var global = (function() { return this; })();
-
-/**
- * WebSocket constructor.
- */
-
-var WebSocket = global.WebSocket || global.MozWebSocket;
-
-/**
- * Module exports.
- */
-
-module.exports = WebSocket ? ws : null;
-
-/**
- * WebSocket constructor.
- *
- * The third `opts` options object gets ignored in web browsers, since it's
- * non-standard, and throws a TypeError if passed to the constructor.
- * See: https://github.com/einaros/ws/issues/227
- *
- * @param {String} uri
- * @param {Array} protocols (optional)
- * @param {Object) opts (optional)
- * @api public
- */
-
-function ws(uri, protocols, opts) {
-  var instance;
-  if (protocols) {
-    instance = new WebSocket(uri, protocols);
-  } else {
-    instance = new WebSocket(uri);
-  }
-  return instance;
-}
-
-if (WebSocket) ws.prototype = WebSocket.prototype;
-
-},{}],57:[function(require,module,exports){
 'use strict';
 
 var alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_'.split('')
@@ -29158,9 +29113,9 @@ yeast.encode = encode;
 yeast.decode = decode;
 module.exports = yeast;
 
-},{}],58:[function(require,module,exports){
+},{}],57:[function(require,module,exports){
 
-},{}],59:[function(require,module,exports){
+},{}],58:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -29253,7 +29208,7 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],60:[function(require,module,exports){
+},{}],59:[function(require,module,exports){
 (function (global){
 /*! https://mths.be/punycode v1.4.0 by @mathias */
 ;(function(root) {
@@ -29790,7 +29745,7 @@ process.umask = function() { return 0; };
 }(this));
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],61:[function(require,module,exports){
+},{}],60:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -29876,7 +29831,7 @@ var isArray = Array.isArray || function (xs) {
   return Object.prototype.toString.call(xs) === '[object Array]';
 };
 
-},{}],62:[function(require,module,exports){
+},{}],61:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -29963,13 +29918,13 @@ var objectKeys = Object.keys || function (obj) {
   return res;
 };
 
-},{}],63:[function(require,module,exports){
+},{}],62:[function(require,module,exports){
 'use strict';
 
 exports.decode = exports.parse = require('./decode');
 exports.encode = exports.stringify = require('./encode');
 
-},{"./decode":61,"./encode":62}],64:[function(require,module,exports){
+},{"./decode":60,"./encode":61}],63:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -30703,7 +30658,7 @@ Url.prototype.parseHost = function() {
   if (host) this.hostname = host;
 };
 
-},{"./util":65,"punycode":60,"querystring":63}],65:[function(require,module,exports){
+},{"./util":64,"punycode":59,"querystring":62}],64:[function(require,module,exports){
 'use strict';
 
 module.exports = {
