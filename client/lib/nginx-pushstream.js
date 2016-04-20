@@ -35,23 +35,6 @@ Authors: Wandenberg Peixoto <wandenberg@gmail.com>, Rogério Carvalho Schneider 
 (function(){
   var urlParser = require('url').parse;
 
-  if (typeof window === 'undefined') {
-    var window = {
-      location: {},
-      escape: function(text) {return text},
-      // WebSocket: require('ws'),
-      setTimeout: setTimeout
-    };
-  }
-  if (typeof document === 'undefined') {
-    var document = {};
-  }
-
-  /* prevent duplicate declaration */
-  if (window.PushStream) {
-    return;
-  }
-
   var Utils = {};
 
   var days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -1266,10 +1249,10 @@ Authors: Wandenberg Peixoto <wandenberg@gmail.com>, Rogério Carvalho Schneider 
   exports.PushStream = PushStream;
   exports.PushStreamManager = PushStreamManager;
 
-  if (window.attachEvent) {
+  if (typeof window !== 'undefined' && window.attachEvent) {
     window.attachEvent("onunload", PushStream.unload);
   }
-  if (window.addEventListener) {
+  if (typeof window !== 'undefined' && window.addEventListener) {
     window.addEventListener.call(window, "unload", PushStream.unload, false);
   }
 })();
